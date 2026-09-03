@@ -1,69 +1,97 @@
-import Image from "next/image";
+import Link from "next/link";
+
+const featureCards = [
+  {
+    title: "Career pathways",
+    description: "Jobs, learnerships, bursaries, and funding opportunities tailored to agricultural learners and SMMEs.",
+  },
+  {
+    title: "Skills matching",
+    description: "Quick match scores help candidates identify roles that align with their experience and qualifications.",
+  },
+  {
+    title: "Visible tracking",
+    description: "Learners can follow each application from submission to employer review and final status update.",
+  },
+];
 
 export default function Home() {
   return (
-    <div className="flex flex-col flex-1 items-center justify-center bg-zinc-50 font-sans dark:bg-black">
-      <main className="flex flex-1 w-full max-w-3xl flex-col items-center justify-between py-32 px-16 bg-white dark:bg-black sm:items-start">
-        <Image
-          className="dark:invert h-5 w-[100px]"
-          src="/next.svg"
-          alt="Next.js logo"
-          width={100}
-          height={20}
-          priority
-        />
-        <div className="flex flex-col items-center gap-6 text-center sm:items-start sm:text-left">
-          <h1 className="max-w-xs text-3xl font-semibold leading-10 tracking-tight text-black dark:text-zinc-50">
-            To get started, edit the{" "}
-            <code className="rounded bg-black/[.06] px-1.5 py-0.5 font-mono text-[0.9em] dark:bg-white/[.08]">
-              page.tsx
-            </code>{" "}
-            file.
+    <main className="min-h-screen bg-cream text-ink">
+      <header className="border-b border-forest/10 bg-forest text-cream">
+        <div className="mx-auto flex max-w-6xl items-center justify-between px-4 py-5 sm:px-6 lg:px-8">
+          <div>
+            <p className="font-display text-2xl tracking-tight">AgriOpportunity</p>
+          </div>
+          <nav className="flex items-center gap-4 text-sm font-medium">
+            <Link href="/opportunities" className="hover:text-goldSoft">Opportunities</Link>
+            <Link href="/dashboard" className="hover:text-goldSoft">Dashboard</Link>
+            <Link href="/login" className="rounded-full bg-gold px-4 py-2 text-ink hover:bg-goldSoft">Login</Link>
+          </nav>
+        </div>
+      </header>
+
+      <section className="mx-auto grid max-w-6xl gap-10 px-4 py-16 sm:px-6 lg:grid-cols-[1.2fr_0.8fr] lg:px-8 lg:py-24">
+        <div className="space-y-7">
+          <span className="inline-flex rounded-full border border-forest/20 bg-forest/5 px-3 py-1 text-xs font-semibold uppercase tracking-[0.2em] text-forest">
+            AgriConnect 360
+          </span>
+          <h1 className="font-display text-5xl leading-tight text-forest sm:text-6xl">
+            Grow your future in agriculture.
           </h1>
-          <p className="max-w-md text-lg leading-8 text-zinc-600 dark:text-zinc-400">
-            Looking for a starting point or more instructions? Head over to{" "}
-            <a
-              href="https://vercel.com/templates?framework=next.js&utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              className="font-medium text-zinc-950 dark:text-zinc-50"
-            >
-              Templates
-            </a>{" "}
-            or the{" "}
-            <a
-              href="https://nextjs.org/learn?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              className="font-medium text-zinc-950 dark:text-zinc-50"
-            >
-              Learning
-            </a>{" "}
-            center.
+          <p className="max-w-xl text-lg leading-8 text-inkSoft">
+            AgriOpportunity connects learners, job seekers, and agricultural SMMEs with the right opportunities in work-integrated learning, employment, funding, and enterprise growth.
           </p>
+          <div className="flex flex-col gap-4 sm:flex-row">
+            <Link
+              href="/register"
+              className="inline-flex items-center justify-center rounded-full bg-forest px-6 py-3 font-medium text-cream transition hover:bg-leaf focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-goldSoft"
+            >
+              Create account
+            </Link>
+            <Link
+              href="/opportunities"
+              className="inline-flex items-center justify-center rounded-full border border-forest/20 bg-white px-6 py-3 font-medium text-forest transition hover:bg-cream2 focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-goldSoft"
+            >
+              Browse opportunities
+            </Link>
+          </div>
         </div>
-        <div className="flex flex-col gap-4 text-base font-medium sm:flex-row">
-          <a
-            className="flex h-12 w-full items-center justify-center gap-2 rounded-full bg-foreground px-5 text-background transition-colors hover:bg-[#383838] dark:hover:bg-[#ccc] md:w-[158px]"
-            href="https://vercel.com/new?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            <Image
-              className="dark:invert h-[14px] w-4"
-              src="/vercel.svg"
-              alt="Vercel logomark"
-              width={16}
-              height={14}
-            />
-            Deploy Now
-          </a>
-          <a
-            className="flex h-12 w-full items-center justify-center rounded-full border border-solid border-black/[.08] px-5 transition-colors hover:border-transparent hover:bg-black/[.04] dark:border-white/[.145] dark:hover:bg-[#1a1a1a] md:w-[158px]"
-            href="https://nextjs.org/docs?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            Documentation
-          </a>
+
+        <div className="rounded-[2rem] bg-white p-6 shadow-lg ring-1 ring-forest/10">
+          <div className="grid gap-4">
+            <div className="rounded-2xl bg-cream2 p-4">
+              <p className="text-sm font-medium text-forest">Open positions</p>
+              <p className="mt-2 font-display text-4xl text-ink">148</p>
+            </div>
+            <div className="rounded-2xl bg-forest p-4 text-cream">
+              <p className="text-sm font-medium text-goldSoft">Active learners</p>
+              <p className="mt-2 font-display text-4xl">3,240</p>
+            </div>
+            <div className="rounded-2xl bg-goldSoft p-4 text-ink">
+              <p className="text-sm font-medium text-forest">Funding partners</p>
+              <p className="mt-2 font-display text-4xl">19</p>
+            </div>
+          </div>
         </div>
-      </main>
-    </div>
+      </section>
+
+      <section className="bg-white">
+        <div className="mx-auto max-w-6xl px-4 py-16 sm:px-6 lg:px-8">
+          <div className="mb-10 max-w-2xl">
+            <p className="text-sm font-semibold uppercase tracking-[0.2em] text-leaf">Why AgriOpportunity</p>
+            <h2 className="mt-3 font-display text-3xl text-forest">A marketplace built for agricultural growth.</h2>
+          </div>
+          <div className="grid gap-6 md:grid-cols-3">
+            {featureCards.map((card) => (
+              <article key={card.title} className="rounded-3xl border border-forest/10 bg-cream p-6 shadow-sm">
+                <h3 className="font-display text-2xl text-forest">{card.title}</h3>
+                <p className="mt-4 text-base leading-7 text-inkSoft">{card.description}</p>
+              </article>
+            ))}
+          </div>
+        </div>
+      </section>
+    </main>
   );
 }

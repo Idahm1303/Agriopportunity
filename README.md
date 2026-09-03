@@ -1,36 +1,68 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# AgriOpportunity
 
-## Getting Started
+AgriOpportunity is a standalone MVP opportunity marketplace for agricultural learners, job seekers, and SMMEs. It helps people discover jobs, learnerships, bursaries, and funding opportunities while making application tracking visible and simple.
 
-First, run the development server:
+## Stack
+
+- Next.js App Router + TypeScript
+- Tailwind CSS
+- NextAuth.js credentials auth
+- Prisma + PostgreSQL (Neon-ready)
+- Vercel deployment
+
+## Local development
+
+1. Install dependencies:
+   ```bash
+   npm install
+   ```
+2. Copy the environment template:
+   ```bash
+   cp .env.example .env.local
+   ```
+3. Update the values for your local database and secrets.
+4. Run the app:
+   ```bash
+   npm run dev
+   ```
+5. Visit http://localhost:3000
+
+## Environment variables
+
+Create a .env.local file with:
 
 ```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
+DATABASE_URL="postgresql://..."
+NEXTAUTH_SECRET="your-secret"
+NEXTAUTH_URL="http://localhost:3000"
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+## Demo accounts
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+The MVP includes seeded demo data for quick testing:
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+- Learner: learner@agriopportunity.co.za / Password123!
+- Employer: employer@agriopportunity.co.za / Password123!
 
-## Learn More
+## Available routes
 
-To learn more about Next.js, take a look at the following resources:
+- /
+- /register
+- /login
+- /opportunities
+- /opportunities/[id]
+- /dashboard
+- /employer/dashboard
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+## Deployment notes
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+1. Push the repository to GitHub.
+2. Create a Neon Postgres database and copy the connection string.
+3. Import the repo in Vercel and set DATABASE_URL and NEXTAUTH_SECRET.
+4. Add a build step to run Prisma migrations before deployment.
+5. Smoke-test registration, sign in, browse opportunities, apply, and view the dashboard.
 
-## Deploy on Vercel
+## Documentation
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
-
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+- docs/api.md
+- docs/data-model.md
