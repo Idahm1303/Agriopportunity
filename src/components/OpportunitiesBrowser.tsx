@@ -22,27 +22,33 @@ function calculateMatchScore(userSkills: string[] = [], requiredSkills: string[]
 export function OpportunitiesBrowser({
   opportunities,
   currentUser,
+  initialCategory = "all",
+  onlyMatched = false,
 }: {
   opportunities: Opportunity[];
   currentUser?: { skills?: string[] } | null;
+  initialCategory?: string;
+  onlyMatched?: boolean;
 }) {
   const [search, setSearch] = useState("");
-  const [category, setCategory] = useState("all");
+  const [category, setCategory] = useState(initialCategory);
 
   const filteredOpportunities = useMemo(() => {
     const searchValue = search.trim().toLowerCase();
 
     return opportunities.filter((opportunity) => {
       const categoryMatches = category === "all" || opportunity.category === category;
+      const matchScore = calculateMatchScore(currentUser?.skills, opportunity.requiredSkills);
+      const matchFilter = !onlyMatched || matchScore > 0;
       const searchMatches =
         !searchValue ||
         opportunity.title.toLowerCase().includes(searchValue) ||
         opportunity.description.toLowerCase().includes(searchValue) ||
         opportunity.requiredSkills.some((skill) => skill.toLowerCase().includes(searchValue));
 
-      return categoryMatches && searchMatches;
+      return categoryMatches && matchFilter && searchMatches;
     }).sort((left, right) => calculateMatchScore(currentUser?.skills, right.requiredSkills) - calculateMatchScore(currentUser?.skills, left.requiredSkills));
-  }, [category, currentUser?.skills, opportunities, search]);
+  }, [category, currentUser?.skills, onlyMatched, opportunities, search]);
 
   return (
     <div className="space-y-6">      <div className="rounded-[2rem] border border-forest/10 bg-white/80 p-4 shadow-[0_18px_40px_rgba(36,76,53,0.08)] backdrop-blur-sm md:p-6">

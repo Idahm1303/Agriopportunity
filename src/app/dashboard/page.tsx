@@ -17,9 +17,14 @@ export default async function DashboardPage() {
           <p className="text-sm font-semibold uppercase tracking-[0.2em] text-leaf">Dashboard</p>
           <h1 className="mt-3 font-display text-4xl text-forest">Welcome back, {learner?.fullName ?? "Learner"}</h1>
         </div>
-        <Link href="/opportunities" className="rounded-full bg-forest px-5 py-3 text-sm font-medium text-cream hover:bg-leaf">
-          Browse opportunities
-        </Link>
+        <div className="flex flex-wrap justify-end gap-3">
+          <Link href="/opportunities?matched=true" className="rounded-full bg-forest px-5 py-3 text-sm font-medium text-cream hover:bg-leaf">
+            Browse matched opportunities
+          </Link>
+          <Link href="/opportunities" className="rounded-full border border-forest/20 px-5 py-3 text-sm font-medium text-forest hover:bg-cream2">
+            Browse all opportunities
+          </Link>
+        </div>
       </div>
 
       <div className="grid gap-6 lg:grid-cols-[0.9fr_1.1fr]">

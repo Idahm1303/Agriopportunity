@@ -11,6 +11,7 @@ export default function RegisterPage() {
     email: "",
     password: "",
     role: "LEARNER",
+    organizationName: "",
     location: "",
   });
   const [error, setError] = useState<string | null>(null);
@@ -126,6 +127,19 @@ export default function RegisterPage() {
               <option value="EMPLOYER">Employer</option>
             </select>
           </div>
+
+          {form.role === "EMPLOYER" ? (
+            <div>
+              <label className="mb-2 block text-sm font-medium text-ink" htmlFor="organizationName">Organisation</label>
+              <input
+                id="organizationName"
+                value={form.organizationName}
+                onChange={(event) => setForm({ ...form, organizationName: event.target.value })}
+                className="w-full rounded-xl border border-inkSoft/20 bg-cream px-3 py-3 text-base text-ink focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-goldSoft"
+                required
+              />
+            </div>
+          ) : null}
 
           <div>
             <label className="mb-2 block text-sm font-medium text-ink" htmlFor="location">Location</label>

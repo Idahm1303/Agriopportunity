@@ -23,16 +23,32 @@ async function main() {
 
   const employer = await prisma.user.upsert({
     where: { email: "employer@agriopportunity.co.za" },
-    update: {},
+    update: { organizationName: "Harvest Fields Cooperative" },
     create: {
       id: "user-employer-1",
       email: "employer@agriopportunity.co.za",
       passwordHash,
       role: "EMPLOYER",
       fullName: "Nandi Mokoena",
+      organizationName: "Harvest Fields Cooperative",
       location: "Bloemfontein",
       skills: ["Agri operations", "Hiring", "Field supervision"],
       qualifications: ["BTech: Agricultural Management"],
+    },
+  });
+
+  const admin = await prisma.user.upsert({
+    where: { email: "admin@agriopportunity.co.za" },
+    update: {},
+    create: {
+      id: "user-admin-1",
+      email: "admin@agriopportunity.co.za",
+      passwordHash,
+      role: "ADMIN",
+      fullName: "AgriOpportunity Admin",
+      location: "Pretoria",
+      skills: [],
+      qualifications: [],
     },
   });
 
@@ -71,7 +87,7 @@ async function main() {
     });
   }
 
-  console.log(`Seeded ${learner.email}, ${employer.email}, and ${opportunities.length} opportunities.`);
+  console.log(`Seeded ${learner.email}, ${employer.email}, ${admin.email}, and ${opportunities.length} opportunities.`);
 }
 
 main()

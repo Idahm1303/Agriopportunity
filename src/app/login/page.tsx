@@ -1,13 +1,13 @@
 "use client";
 
-import { signIn } from "next-auth/react";
+import { getSession, signIn } from "next-auth/react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 
 export default function LoginPage() {
   const router = useRouter();
-  const [form, setForm] = useState({ email: "learner@agriopportunity.co.za", password: "Password123!" });
+  const [form, setForm] = useState({ email: "learner@agriopportunity.co.za", password: "Password123!", organizationName: "" });
   const [error, setError] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
@@ -19,6 +19,7 @@ export default function LoginPage() {
     const result = await signIn("credentials", {
       email: form.email,
       password: form.password,
+      organizationName: form.organizationName,
       redirect: false,
     });
 
@@ -28,7 +29,8 @@ export default function LoginPage() {
       return;
     }
 
-    router.push("/profile");
+    const session = await getSession();
+    router.push((session?.user as { role?: string } | undefined)?.role === "EMPLOYER" ? "/employer/dashboard" : "/profile");
     router.refresh();
     setIsSubmitting(false);
   };
@@ -79,6 +81,17 @@ export default function LoginPage() {
               onChange={(event) => setForm({ ...form, password: event.target.value })}
               className="w-full rounded-xl border border-inkSoft/20 bg-cream px-3 py-3 text-base text-ink focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-goldSoft"
               required
+            />
+          </div>
+
+          <div>
+            <label className="mb-2 block text-sm font-medium text-ink" htmlFor="organizationName">Organisation (employers)</label>
+            <input
+              id="organizationName"
+              value={form.organizationName}
+              onChange={(event) => setForm({ ...form, organizationName: event.target.value })}
+              placeholder="Leave blank for learner accounts"
+              className="w-full rounded-xl border border-inkSoft/20 bg-cream px-3 py-3 text-base text-ink focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-goldSoft"
             />
           </div>
 

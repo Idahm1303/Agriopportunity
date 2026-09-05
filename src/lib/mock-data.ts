@@ -8,6 +8,7 @@ export type User = {
   passwordHash: string;
   role: Role;
   fullName: string;
+  organizationName?: string | null;
   phoneNumber?: string | null;
   address?: string | null;
   location?: string | null;
@@ -26,6 +27,9 @@ export type Opportunity = {
   postedById: string;
   status: string;
   createdAt: string;
+  publishedAt?: string | null;
+  expiresAt?: string | null;
+  closedAt?: string | null;
 };
 
 export type Application = {
@@ -41,7 +45,10 @@ export type Application = {
   matchedSkills: string[];
   opportunityTitle?: string;
   applicantName?: string;
+  applicantEmail?: string;
   createdAt: string;
+  verifiedAt?: string | null;
+  placedAt?: string | null;
 };
 
 const users: User[] = [

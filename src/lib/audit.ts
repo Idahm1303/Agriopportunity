@@ -1,3 +1,5 @@
+import { prisma } from "@/lib/prisma";
+
 export type AuditEntry = {
   id: string;
   action: string;
@@ -8,29 +10,28 @@ export type AuditEntry = {
   createdAt: string;
 };
 
-const auditEntries: AuditEntry[] = [];
-
-export function addAuditEntry(input: {
+export async function addAuditEntry(input: {
   action: string;
   entityType: string;
   entityId: string;
   performedBy?: string;
   details?: string;
 }) {
-  const entry: AuditEntry = {
-    id: `audit-${Date.now()}`,
-    action: input.action,
-    entityType: input.entityType,
-    entityId: input.entityId,
-    performedBy: input.performedBy,
-    details: input.details,
-    createdAt: new Date().toISOString(),
-  };
-
-  auditEntries.push(entry);
-  return entry;
+  return prisma.auditLog.create({ data: input });
 }
 
-export function getAuditEntries() {
-  return auditEntries;
+export async function getAuditEntries(filters?: {
+  action?: string;
+  entityType?: string;
+  performedBy?: string;
+}) {
+  return prisma.auditLog.findMany({
+    where: {
+      ...(filters?.action ? { action: filters.action } : {}),
+      ...(filters?.entityType ? { entityType: filters.entityType } : {}),
+      ...(filters?.performedBy ? { performedBy: filters.performedBy } : {}),
+    },
+    orderBy: { createdAt: "desc" },
+    take: 500,
+  });
 }

@@ -4,7 +4,14 @@ import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { findUserById, listOpportunities } from "@/lib/database";
 
-export default async function OpportunitiesPage() {
+export default async function OpportunitiesPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ category?: string | string[]; matched?: string | string[] }>;
+}) {
+  const query = await searchParams;
+  const category = Array.isArray(query.category) ? query.category[0] : query.category;
+  const matched = Array.isArray(query.matched) ? query.matched[0] : query.matched;
   const session = await getServerSession(authOptions);
   const userId = (session?.user as { userId?: string } | undefined)?.userId;
   const [opportunities, learner] = await Promise.all([
@@ -24,7 +31,12 @@ export default async function OpportunitiesPage() {
         </a>
       </div>
 
-      <OpportunitiesBrowser opportunities={opportunities} currentUser={learner} />
+      <OpportunitiesBrowser
+        opportunities={opportunities}
+        currentUser={learner}
+        initialCategory={category === "funding" ? "funding" : "all"}
+        onlyMatched={matched === "true"}
+      />
     </main>
   );
 }

@@ -11,7 +11,7 @@ const applicationSchema = z.object({ opportunityId: z.string().min(1, "Opportuni
 const allowedDocumentTypes = new Set(["application/pdf", "image/jpeg", "image/png"]);
 const maximumDocumentSize = 10 * 1024 * 1024;
 
-export async function GET() {
+export async function GET(request: Request) {
   const session = await getServerSession(authOptions);
   if (!session) {
     return NextResponse.json({ error: "Authentication required." }, { status: 401 });
@@ -22,7 +22,8 @@ export async function GET() {
 
   if (role === "EMPLOYER" || role === "ADMIN") {
     if (!userId) return NextResponse.json({ error: "User session missing." }, { status: 400 });
-    return NextResponse.json({ applications: await getEmployerApplications(userId, role === "ADMIN") });
+    const category = new URL(request.url).searchParams.get("category") ?? undefined;
+    return NextResponse.json({ applications: await getEmployerApplications(userId, role === "ADMIN", category) });
   }
 
   if (!userId) {
@@ -85,7 +86,7 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: "Opportunity or user not found." }, { status: 404 });
     }
 
-    addAuditEntry({
+    await addAuditEntry({
       action: "application_submitted",
       entityType: "application",
       entityId: application.id,

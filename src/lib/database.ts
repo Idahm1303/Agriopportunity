@@ -10,6 +10,7 @@ function mapUser(user: Prisma.UserGetPayload<object>): User {
     passwordHash: user.passwordHash,
     role: user.role as Role,
     fullName: user.fullName,
+    organizationName: user.organizationName,
     phoneNumber: user.phoneNumber,
     address: user.address,
     location: user.location,
@@ -30,6 +31,9 @@ function mapOpportunity(opportunity: Prisma.OpportunityGetPayload<object>): Oppo
     postedById: opportunity.postedById,
     status: opportunity.status,
     createdAt: opportunity.createdAt.toISOString(),
+    publishedAt: opportunity.publishedAt?.toISOString() ?? null,
+    expiresAt: opportunity.expiresAt?.toISOString() ?? null,
+    closedAt: opportunity.closedAt?.toISOString() ?? null,
   };
 }
 
@@ -47,6 +51,8 @@ function mapApplication(application: Prisma.ApplicationGetPayload<object>): Appl
     matchedSkills: application.matchedSkills,
     opportunityTitle: undefined,
     createdAt: application.createdAt.toISOString(),
+    verifiedAt: application.verifiedAt?.toISOString() ?? null,
+    placedAt: application.placedAt?.toISOString() ?? null,
   };
 }
 
@@ -84,6 +90,10 @@ export async function findUserById(id: string) {
   return user ? mapUser(user) : undefined;
 }
 
+export async function countLearners() {
+  return prisma.user.count({ where: { role: "LEARNER" } });
+}
+
 export async function createUser(input: {
   email: string;
   passwordHash: string;
@@ -92,6 +102,7 @@ export async function createUser(input: {
   location?: string | null;
   skills?: string[];
   qualifications?: string[];
+  organizationName?: string | null;
 }) {
   const user = await prisma.user.create({
     data: {
@@ -99,6 +110,7 @@ export async function createUser(input: {
       passwordHash: input.passwordHash,
       role: input.role,
       fullName: input.fullName,
+      organizationName: input.organizationName ?? null,
       location: input.location ?? null,
       skills: input.skills ?? [],
       qualifications: input.qualifications ?? [],
@@ -131,13 +143,24 @@ export async function updateUserProfile(input: {
 }
 
 export async function listOpportunities() {
-  const opportunities = await prisma.opportunity.findMany({ orderBy: { createdAt: "desc" } });
+  const now = new Date();
+  const opportunities = await prisma.opportunity.findMany({
+    where: { status: "open", OR: [{ expiresAt: null }, { expiresAt: { gt: now } }] },
+    orderBy: { createdAt: "desc" },
+  });
   return opportunities.map(mapOpportunity);
 }
 
 export async function getOpportunityById(id: string) {
   const opportunity = await prisma.opportunity.findUnique({ where: { id } });
   return opportunity ? mapOpportunity(opportunity) : undefined;
+}
+
+export async function getEmployerOpportunities(userId: string, isAdmin: boolean) {
+  return prisma.opportunity.findMany({
+    where: isAdmin ? undefined : { postedById: userId },
+    orderBy: { createdAt: "desc" },
+  });
 }
 
 export async function createOpportunity(input: {
@@ -147,6 +170,7 @@ export async function createOpportunity(input: {
   location?: string | null;
   requiredSkills: string[];
   postedById: string;
+  expiresAt?: Date | null;
 }) {
   const opportunity = await prisma.opportunity.create({
     data: {
@@ -156,6 +180,8 @@ export async function createOpportunity(input: {
       location: input.location ?? null,
       requiredSkills: input.requiredSkills,
       postedById: input.postedById,
+      status: "draft",
+      expiresAt: input.expiresAt ?? null,
     },
   });
 
@@ -175,20 +201,26 @@ export async function getUserApplications(userId: string) {
   }));
 }
 
-export async function getEmployerApplications(userId: string, isAdmin: boolean) {
+export async function getEmployerApplications(userId: string, isAdmin: boolean, category?: string) {
   const applications = await prisma.application.findMany({
-    where: isAdmin ? undefined : { opportunity: { postedById: userId } },
+    where: {
+      ...(isAdmin ? {} : { opportunity: { postedById: userId } }),
+      ...(category && category !== "all" ? { opportunity: { category, ...(isAdmin ? {} : { postedById: userId }) } } : {}),
+    },
     include: {
       opportunity: { select: { title: true } },
-      user: { select: { fullName: true } },
+      user: { select: { fullName: true, email: true } },
     },
-    orderBy: { createdAt: "desc" },
+    orderBy: [{ matchScore: "desc" }, { createdAt: "desc" }],
   });
 
   return applications.map((application) => ({
     ...mapApplication(application),
     opportunityTitle: application.opportunity.title,
     applicantName: application.user.fullName,
+    applicantEmail: application.user.email,
+    verifiedAt: application.verifiedAt?.toISOString() ?? null,
+    placedAt: application.placedAt?.toISOString() ?? null,
   }));
 }
 
@@ -203,6 +235,7 @@ export async function createApplication(input: {
   const opportunity = await prisma.opportunity.findUnique({ where: { id: input.opportunityId } });
   const user = await prisma.user.findUnique({ where: { id: input.userId } });
   if (!opportunity || !user) return null;
+  if (opportunity.status !== "open" || (opportunity.expiresAt && opportunity.expiresAt <= new Date())) return null;
 
   const { matchedSkills, score } = calculateMatch(opportunity.requiredSkills, input.extractedSkills);
   const application = await prisma.application.create({
@@ -239,4 +272,46 @@ export async function getMatchScoreForOpportunity(userId: string, opportunityId:
   if (!user || !opportunity) return 0;
 
   return calculateMatch(opportunity.requiredSkills, user.skills).score;
+}
+
+export async function updateEmployerApplication(input: {
+  appId: string;
+  employerId: string;
+  isAdmin: boolean;
+  status?: string;
+  verify?: boolean;
+  place?: boolean;
+}) {
+  const application = await prisma.application.findFirst({
+    where: { id: input.appId, ...(input.isAdmin ? {} : { opportunity: { postedById: input.employerId } }) },
+  });
+  if (!application) return null;
+
+  return prisma.application.update({
+    where: { id: input.appId },
+    data: {
+      ...(input.status ? { status: input.status } : {}),
+      ...(input.verify ? { verifiedAt: new Date(), verifiedBy: input.employerId } : {}),
+      ...(input.place ? { status: "placed", placedAt: new Date(), placedBy: input.employerId } : {}),
+    },
+    include: {
+      user: { select: { email: true, fullName: true } },
+      opportunity: { select: { title: true } },
+    },
+  });
+}
+
+export async function updateOpportunityStatus(input: { id: string; employerId: string; status: string; isAdmin: boolean }) {
+  const opportunity = await prisma.opportunity.findFirst({
+    where: { id: input.id, ...(input.isAdmin ? {} : { postedById: input.employerId }) },
+  });
+  if (!opportunity) return null;
+  return prisma.opportunity.update({
+    where: { id: input.id },
+    data: {
+      status: input.status,
+      ...(input.status === "open" ? { publishedAt: new Date(), closedAt: null } : {}),
+      ...(input.status === "closed" ? { closedAt: new Date() } : {}),
+    },
+  });
 }

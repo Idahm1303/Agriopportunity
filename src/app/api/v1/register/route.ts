@@ -8,6 +8,7 @@ const registerSchema = z.object({
   email: z.email("Please provide a valid email address."),
   password: z.string().min(8, "Password must be at least 8 characters."),
   fullName: z.string().min(2, "Full name is required."),
+  organizationName: z.string().optional(),
   role: z.enum(["LEARNER", "EMPLOYER"]).default("LEARNER"),
   location: z.string().optional(),
   skills: z.array(z.string()).optional(),
@@ -33,12 +34,17 @@ export async function POST(request: Request) {
       );
     }
 
+    if (parsed.data.role === "EMPLOYER" && !parsed.data.organizationName?.trim()) {
+      return NextResponse.json({ error: "Organisation is required for employer accounts." }, { status: 400 });
+    }
+
     const passwordHash = await hash(parsed.data.password, 10);
     const user = await createUser({
       email: parsed.data.email,
       passwordHash,
       role: parsed.data.role,
       fullName: parsed.data.fullName,
+      organizationName: parsed.data.organizationName,
       location: parsed.data.location,
       skills: parsed.data.skills ?? [],
       qualifications: parsed.data.qualifications ?? [],

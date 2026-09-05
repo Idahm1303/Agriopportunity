@@ -4,10 +4,13 @@ import { z } from "zod";
 
 import { addAuditEntry } from "@/lib/audit";
 import { authOptions } from "@/lib/auth";
-import { updateApplicationStatus } from "@/lib/database";
+import { updateEmployerApplication } from "@/lib/database";
+import { sendApplicationUpdateEmail } from "@/lib/email";
 
 const statusSchema = z.object({
-  status: z.enum(["submitted", "under_review", "accepted", "rejected"]),
+  status: z.enum(["submitted", "under_review", "shortlisted", "accepted", "rejected"]).optional(),
+  verify: z.boolean().optional(),
+  place: z.boolean().optional(),
 });
 
 export async function PATCH(
@@ -38,17 +41,51 @@ export async function PATCH(
       );
     }
 
-    const updated = await updateApplicationStatus(id, parsed.data.status);
+    if (!parsed.data.status && !parsed.data.verify && !parsed.data.place) {
+      return NextResponse.json({ error: "Choose a status or action." }, { status: 400 });
+    }
+
+    const employerId = (session.user as { userId?: string } | undefined)?.userId;
+    if (!employerId) return NextResponse.json({ error: "User session missing." }, { status: 400 });
+    const updated = await updateEmployerApplication({
+      appId: id,
+      employerId,
+      isAdmin: role === "ADMIN",
+      status: parsed.data.status,
+      verify: parsed.data.verify,
+      place: parsed.data.place,
+    });
     if (!updated) {
       return NextResponse.json({ error: "Application not found." }, { status: 404 });
     }
 
-    addAuditEntry({
-      action: "application_status_changed",
+    const action = parsed.data.place
+      ? "application_placed"
+      : parsed.data.verify
+        ? "application_verified"
+        : "application_status_changed";
+    const emailResult = await sendApplicationUpdateEmail({
+      recipient: updated.user.email,
+      applicantName: updated.user.fullName,
+      opportunityTitle: updated.opportunity.title,
+      status: updated.status,
+      verified: Boolean(updated.verifiedAt),
+      placed: Boolean(updated.placedAt),
+    });
+
+    await addAuditEntry({
+      action,
       entityType: "application",
       entityId: updated.id,
       performedBy: (session.user as { userId?: string } | undefined)?.userId ?? session.user?.email ?? "system",
-      details: `Set application ${updated.id} to ${parsed.data.status}`,
+      details: `Status: ${updated.status}; verified: ${Boolean(updated.verifiedAt)}; placed: ${Boolean(updated.placedAt)}`,
+    });
+    await addAuditEntry({
+      action: "application_email_notification",
+      entityType: "application",
+      entityId: updated.id,
+      performedBy: employerId,
+      details: emailResult.reason,
     });
 
     return NextResponse.json({ application: updated });

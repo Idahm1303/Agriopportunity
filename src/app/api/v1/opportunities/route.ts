@@ -12,6 +12,7 @@ const opportunitySchema = z.object({
   category: z.enum(["job", "learnership", "bursary", "funding"]),
   location: z.string().optional(),
   requiredSkills: z.array(z.string().min(2)).min(1, "Choose at least one required skill."),
+  expiresAt: z.string().optional(),
 });
 
 export async function GET() {
@@ -49,9 +50,10 @@ export async function POST(request: Request) {
       location: parsed.data.location,
       requiredSkills: parsed.data.requiredSkills,
       postedById: userId,
+      expiresAt: parsed.data.expiresAt ? new Date(parsed.data.expiresAt) : null,
     });
 
-    addAuditEntry({
+    await addAuditEntry({
       action: "opportunity_created",
       entityType: "opportunity",
       entityId: opportunity.id,
