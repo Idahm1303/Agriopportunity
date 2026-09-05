@@ -2,7 +2,7 @@ import type { NextAuthOptions } from "next-auth";
 import CredentialsProvider from "next-auth/providers/credentials";
 import { compare } from "bcryptjs";
 
-import { findUserByEmail } from "@/lib/mock-data";
+import { findUserByEmail } from "@/lib/database";
 
 export const authOptions: NextAuthOptions = {
   session: {
@@ -20,7 +20,7 @@ export const authOptions: NextAuthOptions = {
           return null;
         }
 
-        const user = findUserByEmail(String(credentials.email));
+        const user = await findUserByEmail(String(credentials.email));
         if (!user) {
           return null;
         }

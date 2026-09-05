@@ -1,9 +1,16 @@
 import { OpportunitiesBrowser } from "@/components/OpportunitiesBrowser";
-import { getDemoUsers, listOpportunities } from "@/lib/mock-data";
+import { getServerSession } from "next-auth";
 
-export default function OpportunitiesPage() {
-  const opportunities = listOpportunities();
-  const learner = getDemoUsers().find((user) => user.role === "LEARNER");
+import { authOptions } from "@/lib/auth";
+import { findUserById, listOpportunities } from "@/lib/database";
+
+export default async function OpportunitiesPage() {
+  const session = await getServerSession(authOptions);
+  const userId = (session?.user as { userId?: string } | undefined)?.userId;
+  const [opportunities, learner] = await Promise.all([
+    listOpportunities(),
+    userId ? findUserById(userId) : Promise.resolve(undefined),
+  ]);
 
   return (
     <main className="mx-auto max-w-6xl px-4 py-12 sm:px-6 lg:px-8">

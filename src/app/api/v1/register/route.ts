@@ -2,7 +2,7 @@ import { hash } from "bcryptjs";
 import { NextResponse } from "next/server";
 import { z } from "zod";
 
-import { createUser, findUserByEmail } from "@/lib/mock-data";
+import { createUser, findUserByEmail } from "@/lib/database";
 
 const registerSchema = z.object({
   email: z.email("Please provide a valid email address."),
@@ -26,7 +26,7 @@ export async function POST(request: Request) {
       );
     }
 
-    if (findUserByEmail(parsed.data.email)) {
+    if (await findUserByEmail(parsed.data.email)) {
       return NextResponse.json(
         { error: "An account with this email already exists." },
         { status: 409 },
@@ -34,7 +34,7 @@ export async function POST(request: Request) {
     }
 
     const passwordHash = await hash(parsed.data.password, 10);
-    const user = createUser({
+    const user = await createUser({
       email: parsed.data.email,
       passwordHash,
       role: parsed.data.role,

@@ -1,9 +1,17 @@
 import { EmployerStatusControls } from "@/components/EmployerStatusControls";
-import { getDemoApplications, getDemoUsers } from "@/lib/mock-data";
+import { getServerSession } from "next-auth";
 
-export default function EmployerDashboardPage() {
-  const employer = getDemoUsers().find((user) => user.role === "EMPLOYER");
-  const applications = getDemoApplications();
+import { authOptions } from "@/lib/auth";
+import { findUserById, getEmployerApplications } from "@/lib/database";
+
+export default async function EmployerDashboardPage() {
+  const session = await getServerSession(authOptions);
+  const userId = (session?.user as { userId?: string } | undefined)?.userId;
+  const role = (session?.user as { role?: string } | undefined)?.role;
+  const employer = userId ? await findUserById(userId) : undefined;
+  const applications = userId && (role === "EMPLOYER" || role === "ADMIN")
+    ? await getEmployerApplications(userId, role === "ADMIN")
+    : [];
 
   return (
     <main className="mx-auto max-w-6xl px-4 py-12 sm:px-6 lg:px-8">
@@ -26,9 +34,23 @@ export default function EmployerDashboardPage() {
               <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
                 <div>
                   <p className="text-sm font-semibold uppercase tracking-[0.14em] text-leaf">Applicant</p>
-                  <h3 className="mt-1 text-xl font-semibold text-ink">User {application.userId}</h3>
+                  <h3 className="mt-1 text-xl font-semibold text-ink">{application.applicantName ?? application.userId}</h3>
+                  <p className="mt-1 text-sm text-inkSoft">
+                    {application.opportunityTitle ?? application.opportunityId}
+                  </p>
+                  <p className="mt-2 text-sm text-inkSoft">
+                    Document: {application.qualificationDocumentName ?? "Not available"}
+                  </p>
+                  <p className="mt-1 text-sm text-inkSoft">
+                    Matched skills: {application.matchedSkills.length ? application.matchedSkills.join(", ") : "No required skills found"}
+                  </p>
                 </div>
-                <EmployerStatusControls applicationId={application.id} initialStatus={application.status} />
+                <div className="flex flex-col items-start gap-3 md:items-end">
+                  <span className="rounded-full bg-goldSoft px-3 py-1 text-sm font-semibold text-ink">
+                    {application.matchScore ?? 0}% qualification match
+                  </span>
+                  <EmployerStatusControls applicationId={application.id} initialStatus={application.status} />
+                </div>
               </div>
             </article>
           ))}

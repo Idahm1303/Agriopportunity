@@ -4,7 +4,7 @@ import { z } from "zod";
 import { addAuditEntry } from "@/lib/audit";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
-import { createOpportunity, listOpportunities } from "@/lib/mock-data";
+import { createOpportunity, listOpportunities } from "@/lib/database";
 
 const opportunitySchema = z.object({
   title: z.string().min(3, "Title must be at least 3 characters."),
@@ -15,7 +15,7 @@ const opportunitySchema = z.object({
 });
 
 export async function GET() {
-  return NextResponse.json({ opportunities: listOpportunities() });
+  return NextResponse.json({ opportunities: await listOpportunities() });
 }
 
 export async function POST(request: Request) {
@@ -42,7 +42,7 @@ export async function POST(request: Request) {
     }
 
     const userId = (session.user as { userId?: string } | undefined)?.userId ?? session.user?.email ?? "system";
-    const opportunity = createOpportunity({
+    const opportunity = await createOpportunity({
       title: parsed.data.title,
       description: parsed.data.description,
       category: parsed.data.category,

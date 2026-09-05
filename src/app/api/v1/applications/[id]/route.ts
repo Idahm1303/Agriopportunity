@@ -4,7 +4,7 @@ import { z } from "zod";
 
 import { addAuditEntry } from "@/lib/audit";
 import { authOptions } from "@/lib/auth";
-import { updateApplicationStatus } from "@/lib/mock-data";
+import { updateApplicationStatus } from "@/lib/database";
 
 const statusSchema = z.object({
   status: z.enum(["submitted", "under_review", "accepted", "rejected"]),
@@ -38,7 +38,7 @@ export async function PATCH(
       );
     }
 
-    const updated = updateApplicationStatus(id, parsed.data.status);
+    const updated = await updateApplicationStatus(id, parsed.data.status);
     if (!updated) {
       return NextResponse.json({ error: "Application not found." }, { status: 404 });
     }

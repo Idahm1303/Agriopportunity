@@ -1,11 +1,18 @@
 import Link from "next/link";
+import { getServerSession } from "next-auth";
 
 import { ApplyButton } from "@/components/ApplyButton";
-import { getDemoUsers, getOpportunityById, getMatchScoreForOpportunity } from "@/lib/mock-data";
+import { authOptions } from "@/lib/auth";
+import { findUserById, getMatchScoreForOpportunity, getOpportunityById } from "@/lib/database";
 
-export default function OpportunityDetailPage({ params }: { params: Promise<{ id: string }> }) {
-  const opportunity = getOpportunityById("opp-1");
-  const learner = getDemoUsers().find((user) => user.role === "LEARNER");
+export default async function OpportunityDetailPage({ params }: { params: Promise<{ id: string }> }) {
+  const { id } = await params;
+  const session = await getServerSession(authOptions);
+  const userId = (session?.user as { userId?: string } | undefined)?.userId;
+  const [opportunity, learner] = await Promise.all([
+    getOpportunityById(id),
+    userId ? findUserById(userId) : Promise.resolve(undefined),
+  ]);
 
   if (!opportunity) {
     return (
@@ -15,7 +22,7 @@ export default function OpportunityDetailPage({ params }: { params: Promise<{ id
     );
   }
 
-  const matchScore = learner ? getMatchScoreForOpportunity(learner.id, opportunity.id) : 0;
+  const matchScore = learner ? await getMatchScoreForOpportunity(learner.id, opportunity.id) : 0;
 
   return (
     <main className="mx-auto max-w-5xl px-4 py-12 sm:px-6 lg:px-8">

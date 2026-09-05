@@ -1,10 +1,14 @@
 import Link from "next/link";
+import { getServerSession } from "next-auth";
 
-import { getDemoApplications, getDemoUsers } from "@/lib/mock-data";
+import { authOptions } from "@/lib/auth";
+import { findUserById, getUserApplications } from "@/lib/database";
 
-export default function DashboardPage() {
-  const learner = getDemoUsers().find((user) => user.role === "LEARNER");
-  const applications = learner ? getDemoApplications().filter((app) => app.userId === learner.id) : [];
+export default async function DashboardPage() {
+  const session = await getServerSession(authOptions);
+  const userId = (session?.user as { userId?: string } | undefined)?.userId;
+  const learner = userId ? await findUserById(userId) : undefined;
+  const applications = userId ? await getUserApplications(userId) : [];
 
   return (
     <main className="mx-auto max-w-6xl px-4 py-12 sm:px-6 lg:px-8">
@@ -50,7 +54,7 @@ export default function DashboardPage() {
                   <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                     <div>
                       <p className="text-sm font-semibold uppercase tracking-[0.14em] text-leaf">{application.status}</p>
-                      <h3 className="mt-1 text-xl font-semibold text-ink">Opportunity #{application.opportunityId}</h3>
+                      <h3 className="mt-1 text-xl font-semibold text-ink">{application.opportunityTitle ?? `Opportunity #${application.opportunityId}`}</h3>
                     </div>
                     <span className="inline-flex rounded-full bg-goldSoft px-2.5 py-1 text-xs font-semibold text-ink">
                       {application.matchScore ?? 0}% match

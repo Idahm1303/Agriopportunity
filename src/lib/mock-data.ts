@@ -8,6 +8,8 @@ export type User = {
   passwordHash: string;
   role: Role;
   fullName: string;
+  phoneNumber?: string | null;
+  address?: string | null;
   location?: string | null;
   skills: string[];
   qualifications: string[];
@@ -32,6 +34,13 @@ export type Application = {
   opportunityId: string;
   status: string;
   matchScore?: number | null;
+  qualificationDocumentName?: string | null;
+  extractedText?: string | null;
+  extractedQualifications: string[];
+  extractedSkills: string[];
+  matchedSkills: string[];
+  opportunityTitle?: string;
+  applicantName?: string;
   createdAt: string;
 };
 
@@ -106,6 +115,9 @@ const applications: Application[] = [
     opportunityId: "opp-1",
     status: "submitted",
     matchScore: 100,
+    extractedQualifications: [],
+    extractedSkills: [],
+    matchedSkills: [],
     createdAt: new Date().toISOString(),
   },
 ];
@@ -191,16 +203,34 @@ export function getUserApplications(userId: string) {
   return applications.filter((app) => app.userId === userId);
 }
 
-export function createApplication(input: { userId: string; opportunityId: string }) {
+function normalizeSkill(skill: string) {
+  return skill.toLowerCase().replace(/[^a-z0-9]+/g, " ").trim();
+}
+
+export function createApplication(input: {
+  userId: string;
+  opportunityId: string;
+  qualificationDocumentName: string;
+  extractedText: string;
+  extractedQualifications: string[];
+  extractedSkills: string[];
+}) {
   const opportunity = getOpportunityById(input.opportunityId);
   const user = findUserById(input.userId);
   if (!opportunity || !user) {
     return null;
   }
 
-  const skillOverlap = opportunity.requiredSkills.filter((skill) =>
-    user.skills.some((userSkill) => userSkill.toLowerCase() === skill.toLowerCase()),
-  );
+  const normalizedExtractedSkills = input.extractedSkills.map(normalizeSkill);
+  const skillOverlap = opportunity.requiredSkills.filter((skill) => {
+    const normalizedRequiredSkill = normalizeSkill(skill);
+    return normalizedExtractedSkills.some(
+      (extractedSkill) =>
+        extractedSkill === normalizedRequiredSkill ||
+        extractedSkill.includes(normalizedRequiredSkill) ||
+        normalizedRequiredSkill.includes(extractedSkill),
+    );
+  });
   const score = opportunity.requiredSkills.length
     ? Math.round((skillOverlap.length / opportunity.requiredSkills.length) * 100)
     : 0;
@@ -211,6 +241,11 @@ export function createApplication(input: { userId: string; opportunityId: string
     opportunityId: input.opportunityId,
     status: "submitted",
     matchScore: score,
+    qualificationDocumentName: input.qualificationDocumentName,
+    extractedText: input.extractedText,
+    extractedQualifications: input.extractedQualifications,
+    extractedSkills: input.extractedSkills,
+    matchedSkills: skillOverlap,
     createdAt: new Date().toISOString(),
   };
 

@@ -48,17 +48,37 @@ export default function RegisterPage() {
   };
 
   return (
-    <main className="mx-auto flex min-h-screen max-w-5xl items-center justify-center px-4 py-12">
-      <div className="grid w-full max-w-5xl overflow-hidden rounded-3xl bg-white shadow-xl ring-1 ring-forest/10 lg:grid-cols-2">
-        <div className="bg-forest p-8 text-cream lg:p-12">
-          <p className="text-sm font-semibold uppercase tracking-[0.2em] text-goldSoft">Join AgriOpportunity</p>
-          <h1 className="mt-4 font-display text-4xl text-cream">Create your account</h1>
-          <p className="mt-5 text-base leading-7 text-cream/90">
+    <main className="flex min-h-screen items-center justify-center px-4 py-12">
+      <div className="grid w-full max-w-6xl overflow-hidden rounded-[2rem] bg-white shadow-[0_24px_70px_rgba(17,42,29,0.12)] ring-1 ring-forest/10 lg:grid-cols-[1.05fr_1.1fr]">
+        <div className="bg-[linear-gradient(135deg,#244C35_0%,#315d42_46%,#1d382d_100%)] p-8 text-cream lg:p-12">
+          <div className="flex h-12 w-12 items-center justify-center rounded-full bg-white/10 text-lg font-semibold ring-1 ring-white/20">
+            A
+          </div>
+          <p className="mt-6 text-sm font-semibold uppercase tracking-[0.2em] text-goldSoft">Join AgriOpportunity</p>
+          <h1 className="mt-4 font-display text-4xl text-cream lg:text-5xl">Create your account</h1>
+          <p className="mt-5 max-w-md text-base leading-7 text-cream/90">
             Sign up as a learner, employer, or admin to unlock tailored agricultural opportunities and application tracking.
           </p>
+          <div className="mt-8 space-y-4">
+            {[
+              "Tailored opportunity matching",
+              "Visible application tracking",
+              "Access to learnerships, jobs, and funding",
+            ].map((item) => (
+              <div key={item} className="flex items-center gap-3 rounded-2xl border border-white/10 bg-white/5 p-3 text-sm text-cream/90">
+                <span className="inline-flex h-7 w-7 items-center justify-center rounded-full bg-gold/20 text-goldSoft">✓</span>
+                {item}
+              </div>
+            ))}
+          </div>
         </div>
 
         <form onSubmit={handleSubmit} className="space-y-5 p-8 lg:p-12">
+          <div>
+            <p className="text-sm font-semibold uppercase tracking-[0.2em] text-leaf">Get started</p>
+            <h2 className="mt-3 font-display text-3xl text-forest">Build your profile</h2>
+          </div>
+
           <div>
             <label className="mb-2 block text-sm font-medium text-ink" htmlFor="fullName">Full name</label>
             <input
@@ -122,7 +142,7 @@ export default function RegisterPage() {
           <button
             type="submit"
             disabled={isSubmitting}
-            className="inline-flex w-full items-center justify-center rounded-full bg-forest px-5 py-3 font-medium text-cream transition hover:bg-leaf disabled:cursor-not-allowed disabled:opacity-60 focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-goldSoft"
+            className="inline-flex w-full items-center justify-center rounded-full bg-forest px-5 py-3.5 font-medium text-cream shadow-lg shadow-forest/15 transition hover:bg-leaf disabled:cursor-not-allowed disabled:opacity-60 focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-goldSoft"
           >
             {isSubmitting ? "Creating account..." : "Create account"}
           </button>

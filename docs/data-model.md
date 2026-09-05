@@ -38,6 +38,11 @@ The Application model links a learner to an opportunity and stores progression t
 - opportunity: target listing
 - status: submitted, under_review, accepted, rejected
 - matchScore: percentage based on required skill overlap
+- qualificationDocumentName: uploaded PDF, JPG, or PNG filename
+- extractedText: text returned by AI document extraction
+- extractedQualifications: credentials identified in the document
+- extractedSkills: skills identified in the document
+- matchedSkills: required skills matched against extracted skills
 - createdAt: timestamp of submission
 
 ### AuditLog

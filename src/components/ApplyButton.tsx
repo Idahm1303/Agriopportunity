@@ -7,18 +7,25 @@ export function ApplyButton({ opportunityId }: { opportunityId: string }) {
   const router = useRouter();
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
+  const [document, setDocument] = useState<File | null>(null);
 
   const handleApply = async () => {
+    if (!document) {
+      setMessage("Choose your qualification document before applying.");
+      return;
+    }
+
     setIsSubmitting(true);
     setMessage(null);
 
     try {
+      const formData = new FormData();
+      formData.append("opportunityId", opportunityId);
+      formData.append("qualificationDocument", document);
+
       const response = await fetch("/api/v1/applications", {
         method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({ opportunityId }),
+        body: formData,
       });
 
       const payload = await response.json();
@@ -40,6 +47,17 @@ export function ApplyButton({ opportunityId }: { opportunityId: string }) {
 
   return (
     <div className="space-y-3">
+      <label className="block text-sm font-medium text-ink" htmlFor="qualification-document">
+        Qualification document
+        <span className="mt-2 block text-xs font-normal text-inkSoft">PDF, JPG, or PNG up to 10 MB</span>
+        <input
+          id="qualification-document"
+          type="file"
+          accept="application/pdf,image/jpeg,image/png"
+          onChange={(event) => setDocument(event.target.files?.[0] ?? null)}
+          className="mt-2 block w-full rounded-2xl border border-forest/15 bg-white px-3 py-2 text-sm text-ink file:mr-3 file:rounded-full file:border-0 file:bg-cream2 file:px-3 file:py-2 file:text-sm file:font-medium file:text-forest"
+        />
+      </label>
       <button
         type="button"
         onClick={handleApply}

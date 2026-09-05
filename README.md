@@ -21,11 +21,16 @@ AgriOpportunity is a standalone MVP opportunity marketplace for agricultural lea
    cp .env.example .env.local
    ```
 3. Update the values for your local database and secrets.
-4. Run the app:
+4. Apply the database migrations and seed demo records:
+   ```bash
+   npx prisma migrate deploy
+   npm run prisma:seed
+   ```
+5. Run the app:
    ```bash
    npm run dev
    ```
-5. Visit http://localhost:3000
+6. Visit http://localhost:3000
 
 ## Environment variables
 
@@ -35,6 +40,8 @@ Create a .env.local file with:
 DATABASE_URL="postgresql://..."
 NEXTAUTH_SECRET="your-secret"
 NEXTAUTH_URL="http://localhost:3000"
+OPENAI_API_KEY="your-openai-api-key"
+OPENAI_MODEL="gpt-4o-mini"
 ```
 
 ## Demo accounts
@@ -43,6 +50,8 @@ The MVP includes seeded demo data for quick testing:
 
 - Learner: learner@agriopportunity.co.za / Password123!
 - Employer: employer@agriopportunity.co.za / Password123!
+
+Applications require a qualification document upload. The server sends PDF, JPG, and PNG documents to the configured OpenAI model for text, qualification, and skill extraction, then scores the extracted skills against the opportunity requirements. Documents are limited to 10 MB and the demo application store keeps extracted results in memory.
 
 ## Available routes
 

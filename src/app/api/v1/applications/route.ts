@@ -4,11 +4,12 @@ import { z } from "zod";
 
 import { addAuditEntry } from "@/lib/audit";
 import { authOptions } from "@/lib/auth";
-import { createApplication, getUserApplications } from "@/lib/mock-data";
+import { createApplication, getEmployerApplications, getUserApplications } from "@/lib/database";
+import { extractQualification } from "@/lib/qualification-ocr";
 
-const applicationSchema = z.object({
-  opportunityId: z.string().min(1, "Opportunity ID is required."),
-});
+const applicationSchema = z.object({ opportunityId: z.string().min(1, "Opportunity ID is required.") });
+const allowedDocumentTypes = new Set(["application/pdf", "image/jpeg", "image/png"]);
+const maximumDocumentSize = 10 * 1024 * 1024;
 
 export async function GET() {
   const session = await getServerSession(authOptions);
@@ -20,14 +21,15 @@ export async function GET() {
   const userId = (session.user as { userId?: string } | undefined)?.userId;
 
   if (role === "EMPLOYER" || role === "ADMIN") {
-    return NextResponse.json({ applications: [] });
+    if (!userId) return NextResponse.json({ error: "User session missing." }, { status: 400 });
+    return NextResponse.json({ applications: await getEmployerApplications(userId, role === "ADMIN") });
   }
 
   if (!userId) {
     return NextResponse.json({ error: "User session missing." }, { status: 400 });
   }
 
-  return NextResponse.json({ applications: getUserApplications(userId) });
+  return NextResponse.json({ applications: await getUserApplications(userId) });
 }
 
 export async function POST(request: Request) {
@@ -47,8 +49,8 @@ export async function POST(request: Request) {
   }
 
   try {
-    const body = await request.json();
-    const parsed = applicationSchema.safeParse(body);
+    const formData = await request.formData();
+    const parsed = applicationSchema.safeParse({ opportunityId: formData.get("opportunityId") });
 
     if (!parsed.success) {
       return NextResponse.json(
@@ -57,9 +59,26 @@ export async function POST(request: Request) {
       );
     }
 
-    const application = createApplication({
+    const document = formData.get("qualificationDocument");
+    if (!(document instanceof File)) {
+      return NextResponse.json({ error: "A qualification document is required." }, { status: 400 });
+    }
+    if (!allowedDocumentTypes.has(document.type)) {
+      return NextResponse.json({ error: "Upload a PDF, JPG, or PNG qualification document." }, { status: 400 });
+    }
+    if (document.size > maximumDocumentSize) {
+      return NextResponse.json({ error: "Qualification documents must be smaller than 10 MB." }, { status: 400 });
+    }
+
+    const extraction = await extractQualification(document);
+
+    const application = await createApplication({
       userId,
       opportunityId: parsed.data.opportunityId,
+      qualificationDocumentName: document.name,
+      extractedText: extraction.extractedText,
+      extractedQualifications: extraction.qualifications,
+      extractedSkills: extraction.skills,
     });
 
     if (!application) {

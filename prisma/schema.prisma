@@ -13,6 +13,8 @@ model User {
   passwordHash  String
   role          Role          @default(LEARNER)
   fullName      String
+  phoneNumber   String?
+  address       String?
   location      String?
   skills        String[]
   qualifications String[]
@@ -49,6 +51,11 @@ model Application {
   opportunityId String
   status        String       @default("submitted")
   matchScore    Float?
+  qualificationDocumentName String?
+  extractedText String?
+  extractedQualifications String[] @default([])
+  extractedSkills String[] @default([])
+  matchedSkills String[] @default([])
   createdAt     DateTime     @default(now())
 }
 
