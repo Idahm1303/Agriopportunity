@@ -1,5 +1,6 @@
 import { Prisma } from "@prisma/client";
 
+import { addAuditEntry } from "@/lib/audit";
 import { prisma } from "@/lib/prisma";
 import type { Application, Opportunity, Role, User } from "@/lib/mock-data";
 
@@ -80,6 +81,10 @@ function calculateMatch(requiredSkills: string[], extractedSkills: string[]) {
   };
 }
 
+function containsPaymentRequest(text: string) {
+  return /application\s+fee|registration\s+fee|pay\s+(?:a|the)?\s*(?:fee|money)|send\s+money|payment\s+required/i.test(text);
+}
+
 export async function findUserByEmail(email: string) {
   const user = await prisma.user.findUnique({ where: { email: email.toLowerCase() } });
   return user ? mapUser(user) : undefined;
@@ -142,6 +147,90 @@ export async function updateUserProfile(input: {
   return mapUser(user);
 }
 
+export async function createDocument(input: {
+  userId: string;
+  applicationId?: string;
+  opportunityId?: string;
+  documentType: string;
+  fileName: string;
+  extractedText?: string;
+  extractedQualifications?: string[];
+  extractedSkills?: string[];
+  confidence?: number;
+}) {
+  return prisma.document.create({
+    data: {
+      userId: input.userId,
+      applicationId: input.applicationId,
+      opportunityId: input.opportunityId,
+      documentType: input.documentType,
+      fileName: input.fileName,
+      extractedText: input.extractedText,
+      extractedQualifications: input.extractedQualifications ?? [],
+      extractedSkills: input.extractedSkills ?? [],
+      confidence: input.confidence,
+    },
+  });
+}
+
+export async function saveOpportunity(applicantId: string, opportunityId: string) {
+  return prisma.savedOpportunity.upsert({
+    where: { applicantId_opportunityId: { applicantId, opportunityId } },
+    update: {},
+    create: { applicantId, opportunityId },
+  });
+}
+
+export async function unsaveOpportunity(applicantId: string, opportunityId: string) {
+  return prisma.savedOpportunity.deleteMany({ where: { applicantId, opportunityId } });
+}
+
+export async function createOpportunityReport(input: { opportunityId: string; reporterUserId: string; reason: string }) {
+  return prisma.$transaction(async (transaction) => {
+    const report = await transaction.report.create({ data: input });
+    if (containsPaymentRequest(input.reason)) {
+      await transaction.opportunity.update({
+        where: { id: input.opportunityId },
+        data: { paymentRequestFlag: true, status: "suspended" },
+      });
+    }
+    return report;
+  });
+}
+
+export async function moderateOpportunity(input: { opportunityId: string; status: string; adminId: string }) {
+  const opportunity = await prisma.opportunity.update({
+    where: { id: input.opportunityId },
+    data: { status: input.status, ...(input.status === "suspended" ? { closedAt: new Date() } : {}) },
+  });
+  await addAuditEntry({
+    action: `opportunity_${input.status}`,
+    entityType: "opportunity",
+    entityId: input.opportunityId,
+    performedBy: input.adminId,
+    details: `Admin moderation changed listing status to ${input.status}.`,
+  });
+  return opportunity;
+}
+
+export async function updateEmployerVerification(input: { employerId: string; status: string; documentUrl?: string | null; adminId: string }) {
+  const employer = await prisma.user.update({
+    where: { id: input.employerId },
+    data: {
+      verificationStatus: input.status,
+      ...(input.documentUrl !== undefined ? { verificationDocumentUrl: input.documentUrl } : {}),
+    },
+  });
+  await addAuditEntry({
+    action: `employer_${input.status}`,
+    entityType: "user",
+    entityId: input.employerId,
+    performedBy: input.adminId,
+    details: `Employer verification status changed to ${input.status}.`,
+  });
+  return employer;
+}
+
 export async function listOpportunities() {
   const now = new Date();
   const opportunities = await prisma.opportunity.findMany({
@@ -181,6 +270,7 @@ export async function createOpportunity(input: {
       requiredSkills: input.requiredSkills,
       postedById: input.postedById,
       status: "draft",
+      paymentRequestFlag: containsPaymentRequest(`${input.title} ${input.description}`),
       expiresAt: input.expiresAt ?? null,
     },
   });
@@ -306,6 +396,7 @@ export async function updateOpportunityStatus(input: { id: string; employerId: s
     where: { id: input.id, ...(input.isAdmin ? {} : { postedById: input.employerId }) },
   });
   if (!opportunity) return null;
+  if (input.status === "open" && opportunity.paymentRequestFlag && !input.isAdmin) return null;
   return prisma.opportunity.update({
     where: { id: input.id },
     data: {

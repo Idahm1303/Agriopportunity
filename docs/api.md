@@ -96,3 +96,35 @@ Request body:
   "location": "Pretoria"
 }
 ```
+
+### POST /api/v1/reports
+
+An authenticated applicant reports a suspicious or fraudulent opportunity.
+
+```json
+{ "opportunityId": "opp-1", "reason": "The listing asks applicants to pay an application fee." }
+```
+
+### POST /api/v1/saved-opportunities
+
+An authenticated applicant saves an opportunity for later.
+
+```json
+{ "opportunityId": "opp-1" }
+```
+
+### DELETE /api/v1/saved-opportunities
+
+Removes an applicant's saved opportunity. The request body uses the same shape as the POST request.
+
+### PATCH /api/v1/admin/opportunities/[id]
+
+Administrator moderation changes a listing to `open`, `closed`, or `suspended`.
+
+### PATCH /api/v1/admin/employers/[id]
+
+Administrator verification changes an employer to `pending`, `verified`, or `rejected` and may include `verificationDocumentUrl`.
+
+### OCR document response fields
+
+Profile and application OCR workflows store document metadata and return `extractionConfidence`. Clients should ask the applicant to confirm extracted values when `extractionConfidence` is below `0.8`.

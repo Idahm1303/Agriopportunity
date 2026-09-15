@@ -2,6 +2,7 @@ import Link from "next/link";
 import { getServerSession } from "next-auth";
 
 import { ApplyButton } from "@/components/ApplyButton";
+import { OpportunityActions } from "@/components/OpportunityActions";
 import { authOptions } from "@/lib/auth";
 import { findUserById, getMatchScoreForOpportunity, getOpportunityById } from "@/lib/database";
 
@@ -72,6 +73,7 @@ export default async function OpportunityDetailPage({ params }: { params: Promis
 
             <div className="mt-6">
               <ApplyButton opportunityId={opportunity.id} />
+              <OpportunityActions opportunityId={opportunity.id} />
             </div>
           </aside>
         </div>

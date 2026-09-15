@@ -4,7 +4,7 @@ import { z } from "zod";
 
 import { addAuditEntry } from "@/lib/audit";
 import { authOptions } from "@/lib/auth";
-import { createApplication, getEmployerApplications, getUserApplications } from "@/lib/database";
+import { createApplication, createDocument, getEmployerApplications, getUserApplications } from "@/lib/database";
 import { extractQualification } from "@/lib/qualification-ocr";
 
 const applicationSchema = z.object({ opportunityId: z.string().min(1, "Opportunity ID is required.") });
@@ -85,6 +85,18 @@ export async function POST(request: Request) {
     if (!application) {
       return NextResponse.json({ error: "Opportunity or user not found." }, { status: 404 });
     }
+
+    await createDocument({
+      userId,
+      applicationId: application.id,
+      opportunityId: parsed.data.opportunityId,
+      documentType: "qualification",
+      fileName: document.name,
+      extractedText: extraction.extractedText,
+      extractedQualifications: extraction.qualifications,
+      extractedSkills: extraction.skills,
+      confidence: extraction.confidence,
+    });
 
     await addAuditEntry({
       action: "application_submitted",

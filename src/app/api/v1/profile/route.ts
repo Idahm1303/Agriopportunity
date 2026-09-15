@@ -3,7 +3,7 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 
 import { authOptions } from "@/lib/auth";
-import { findUserById, updateUserProfile } from "@/lib/database";
+import { createDocument, findUserById, updateUserProfile } from "@/lib/database";
 import { extractQualification } from "@/lib/qualification-ocr";
 
 const profileSchema = z.object({
@@ -51,6 +51,7 @@ export async function POST(request: Request) {
     const document = formData.get("qualificationDocument");
     let extractedSkills: string[] = [];
     let extractedQualifications: string[] = [];
+    let extractionConfidence: number | undefined;
 
     if (document instanceof File && document.size > 0) {
       if (!allowedDocumentTypes.has(document.type)) {
@@ -63,6 +64,7 @@ export async function POST(request: Request) {
       const extraction = await extractQualification(document);
       extractedSkills = extraction.skills;
       extractedQualifications = extraction.qualifications;
+      extractionConfidence = extraction.confidence;
     }
 
     const profileSkills = Array.from(new Set([...parsed.data.skills, ...extractedSkills]));
@@ -77,7 +79,22 @@ export async function POST(request: Request) {
       qualifications,
     });
 
-    return NextResponse.json({ message: document instanceof File && document.size > 0 ? "Profile updated and qualification scanned." : "Profile updated." });
+    if (document instanceof File && document.size > 0) {
+      await createDocument({
+        userId,
+        documentType: "qualification",
+        fileName: document.name,
+        extractedQualifications,
+        extractedSkills,
+        confidence: extractionConfidence,
+      });
+    }
+
+    return NextResponse.json({
+      message: document instanceof File && document.size > 0 ? "Profile updated and qualification scanned." : "Profile updated.",
+      extractionConfidence,
+      requiresConfirmation: extractionConfidence !== undefined && extractionConfidence < 0.8,
+    });
   } catch (error) {
     return NextResponse.json(
       { error: error instanceof Error ? error.message : "Unable to update profile." },

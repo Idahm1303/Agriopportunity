@@ -4,6 +4,7 @@ const extractionSchema = z.object({
   extractedText: z.string().min(1),
   qualifications: z.array(z.string()).default([]),
   skills: z.array(z.string()).default([]),
+  confidence: z.number().min(0).max(1).default(0),
 });
 
 export type QualificationExtraction = z.infer<typeof extractionSchema>;
@@ -56,7 +57,7 @@ export async function extractQualification(file: File): Promise<QualificationExt
               text: [
                 "Read this qualification document carefully.",
                 "Extract the document text, named qualifications or certificates, and concrete professional or technical skills.",
-                "Return JSON only with this shape: {\"extractedText\": string, \"qualifications\": string[], \"skills\": string[]}.",
+                "Return JSON only with this shape: {\"extractedText\": string, \"qualifications\": string[], \"skills\": string[], \"confidence\": number from 0 to 1}.",
                 "Keep skills concise and use the wording found in the document.",
               ].join(" "),
             },

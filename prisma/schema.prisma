@@ -8,20 +8,25 @@ datasource db {
 }
 
 model User {
-  id            String        @id @default(uuid())
-  email         String        @unique
-  passwordHash  String
-  role          Role          @default(LEARNER)
-  fullName      String
-  organizationName String?
-  phoneNumber   String?
-  address       String?
-  location      String?
-  skills        String[]
-  qualifications String[]
-  createdAt     DateTime      @default(now())
-  applications  Application[]
-  opportunities Opportunity[] @relation("PostedBy")
+  id                      String             @id @default(uuid())
+  email                   String             @unique
+  passwordHash            String
+  role                    Role               @default(LEARNER)
+  fullName                String
+  organizationName        String?
+  phoneNumber             String?
+  address                 String?
+  location                String?
+  skills                  String[]
+  qualifications          String[]
+  verificationStatus      String             @default("pending")
+  verificationDocumentUrl String?
+  createdAt               DateTime           @default(now())
+  applications            Application[]
+  opportunities           Opportunity[]      @relation("PostedBy")
+  documents               Document[]
+  reports                 Report[]
+  savedOpportunities      SavedOpportunity[]
 }
 
 enum Role {
@@ -31,40 +36,88 @@ enum Role {
 }
 
 model Opportunity {
-  id             String        @id @default(uuid())
-  title          String
-  description    String
-  category       String
-  location       String?
-  requiredSkills String[]
-  postedBy       User          @relation("PostedBy", fields: [postedById], references: [id])
-  postedById     String
-  status         String        @default("open")
-  publishedAt    DateTime?
-  expiresAt      DateTime?
-  closedAt       DateTime?
-  createdAt      DateTime      @default(now())
-  applications   Application[]
+  id                 String             @id @default(uuid())
+  title              String
+  description        String
+  category           String
+  location           String?
+  requiredSkills     String[]
+  postedBy           User               @relation("PostedBy", fields: [postedById], references: [id])
+  postedById         String
+  status             String             @default("open")
+  publishedAt        DateTime?
+  expiresAt          DateTime?
+  closedAt           DateTime?
+  paymentRequestFlag Boolean            @default(false)
+  viewCount          Int                @default(0)
+  createdAt          DateTime           @default(now())
+  applications       Application[]
+  documents          Document[]
+  reports            Report[]
+  savedBy            SavedOpportunity[]
 }
 
 model Application {
-  id            String       @id @default(uuid())
-  user          User         @relation(fields: [userId], references: [id])
-  userId        String
-  opportunity   Opportunity  @relation(fields: [opportunityId], references: [id])
-  opportunityId String
-  status        String       @default("submitted")
-  matchScore    Float?
+  id                        String      @id @default(uuid())
+  user                      User        @relation(fields: [userId], references: [id])
+  userId                    String
+  opportunity               Opportunity @relation(fields: [opportunityId], references: [id])
+  opportunityId             String
+  status                    String      @default("submitted")
+  matchScore                Float?
   qualificationDocumentName String?
-  extractedText String?
-  extractedQualifications String[] @default([])
-  extractedSkills String[] @default([])
-  matchedSkills String[] @default([])
-  verifiedAt    DateTime?
-  verifiedBy    String?
-  placedAt      DateTime?
-  placedBy      String?
-  createdAt     DateTime     @default(now())
+  extractedText             String?
+  extractedQualifications   String[]    @default([])
+  extractedSkills           String[]    @default([])
+  matchedSkills             String[]    @default([])
+  verifiedAt                DateTime?
+  verifiedBy                String?
+  placedAt                  DateTime?
+  placedBy                  String?
+  createdAt                 DateTime    @default(now())
+  documents                 Document[]
+}
+
+model Document {
+  id                      String       @id @default(uuid())
+  user                    User         @relation(fields: [userId], references: [id])
+  userId                  String
+  opportunity             Opportunity? @relation(fields: [opportunityId], references: [id])
+  opportunityId           String?
+  application             Application? @relation(fields: [applicationId], references: [id])
+  applicationId           String?
+  documentType            String
+  fileName                String
+  storageUrl              String?
+  extractedText           String?
+  extractedQualifications String[]     @default([])
+  extractedSkills         String[]     @default([])
+  confidence              Float?
+  confirmedAt             DateTime?
+  createdAt               DateTime     @default(now())
+}
+
+model Report {
+  id             String      @id @default(uuid())
+  opportunity    Opportunity @relation(fields: [opportunityId], references: [id])
+  opportunityId  String
+  reporter       User        @relation(fields: [reporterUserId], references: [id])
+  reporterUserId String
+  reason         String
+  status         String      @default("open")
+  resolutionNote String?
+  createdAt      DateTime    @default(now())
+  resolvedAt     DateTime?
+}
+
+model SavedOpportunity {
+  applicant     User        @relation(fields: [applicantId], references: [id])
+  applicantId   String
+  opportunity   Opportunity @relation(fields: [opportunityId], references: [id])
+  opportunityId String
+  savedAt       DateTime    @default(now())
+
+  @@id([applicantId, opportunityId])
 }
 
 model AuditLog {
