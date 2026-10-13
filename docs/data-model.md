@@ -28,6 +28,7 @@ The Opportunity model represents jobs, learnerships, bursaries, or funding calls
 - title: clear public title
 - description: detailed overview
 - category: one of the four supported opportunity types
+- applicationEmail: employer/provider address for receiving applications
 - location: where the opportunity sits
 - requiredSkills: simple match tags used for skill-overlap score
 - postedBy: who published the listing
@@ -41,15 +42,23 @@ The Application model links a learner to an opportunity and stores progression t
 
 - user: learner who applied
 - opportunity: target listing
-- status: submitted, under_review, accepted, rejected
+- status: submitted, under_review, shortlisted, interview, successful, unsuccessful
 - matchScore: percentage based on required skill overlap
-- qualificationDocumentName: uploaded PDF, JPG, or PNG filename
+- coverNote: learner's message to the employer
+- cvUrl: CV object-storage key emailed to the employer as an attachment
+- employerEmailSentAt, learnerEmailSentAt, emailError: delivery state used for retry and learner feedback
+- qualificationDocumentName: optional uploaded PDF, JPG, or PNG filename
 - extractedText: text returned by AI document extraction
 - extractedQualifications: credentials identified in the document
 - extractedSkills: skills identified in the document
 - matchedSkills: required skills matched against extracted skills
-- createdAt: timestamp of submission
+- createdAt and updatedAt: submission and most recent update timestamps
 - documents: OCR document metadata linked to this application
+- statusHistory: dated status transitions, including initial submission
+
+### ApplicationStatusHistory
+
+ApplicationStatusHistory records each application state transition, who made it, and when it occurred. It is displayed as the learner's application timeline.
 
 ### Document
 

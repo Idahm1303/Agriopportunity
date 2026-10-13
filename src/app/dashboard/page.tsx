@@ -3,6 +3,7 @@ import { getServerSession } from "next-auth";
 
 import { authOptions } from "@/lib/auth";
 import { findUserById, getUserApplications } from "@/lib/database";
+import { ApplicationEmailRetry } from "@/components/ApplicationEmailRetry";
 
 export default async function DashboardPage() {
   const session = await getServerSession(authOptions);
@@ -65,6 +66,19 @@ export default async function DashboardPage() {
                       {application.matchScore ?? 0}% match
                     </span>
                   </div>
+                  <p className="mt-2 text-xs text-inkSoft">Applied {new Date(application.createdAt).toLocaleDateString()} · Updated {new Date(application.updatedAt ?? application.createdAt).toLocaleDateString()}</p>
+                  {application.statusHistory?.length ? (
+                    <ol className="mt-4 space-y-2 border-l-2 border-forest/15 pl-4" aria-label="Application status timeline">
+                      {application.statusHistory.map((entry, index) => (
+                        <li key={`${application.id}-${entry.changedAt}-${index}`} className="text-sm text-inkSoft">
+                          <span className="font-medium text-ink">{entry.status.replaceAll("_", " ")}</span>
+                          <span className="ml-2 text-xs">{new Date(entry.changedAt).toLocaleDateString()}</span>
+                        </li>
+                      ))}
+                    </ol>
+                  ) : null}
+                  {application.emailError ? <p className="mt-3 text-sm text-red-700">Email delivery needs attention: {application.emailError}</p> : null}
+                  <ApplicationEmailRetry applicationId={application.id} pending={Boolean(application.cvUrl) && (!application.employerEmailSentAt || !application.learnerEmailSentAt)} />
                 </article>
               ))
             ) : (

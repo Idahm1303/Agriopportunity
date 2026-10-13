@@ -24,7 +24,11 @@ export default function LoginPage() {
     });
 
     if (result?.error) {
-      setError("Invalid email or password.");
+      setError(
+        result.error === "CredentialsSignin"
+          ? "Invalid email, password, or organisation name."
+          : "Unable to sign in right now. Please try again.",
+      );
       setIsSubmitting(false);
       return;
     }

@@ -54,7 +54,7 @@ export default async function EmployerDashboardPage({ searchParams }: { searchPa
                   <p className="text-sm font-semibold uppercase tracking-[0.14em] text-leaf">Applicant</p>
                   <h3 className="mt-1 text-xl font-semibold text-ink">{application.applicantName ?? application.userId}</h3>
                   <p className="mt-1 text-sm text-inkSoft">
-                    {application.opportunityTitle ?? application.opportunityId}
+                    Selected opportunity: {application.opportunityTitle ?? application.opportunityId}
                   </p>
                   <p className="mt-2 text-sm text-inkSoft">
                     Document: {application.qualificationDocumentName ?? "Not available"}

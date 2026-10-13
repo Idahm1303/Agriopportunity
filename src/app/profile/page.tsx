@@ -120,8 +120,13 @@ export default function ProfilePage() {
         </div>
 
         {error ? <p className="rounded-xl bg-red-50 p-3 text-sm text-red-700">{error}</p> : null}
-        <button type="submit" disabled={isSubmitting} className="w-full rounded-full bg-forest px-5 py-3.5 font-medium text-cream transition hover:bg-leaf disabled:cursor-not-allowed disabled:opacity-60">
-          {isSubmitting ? "Saving profile and finding matches..." : "Submit and see matched opportunities"}
+        <button type="submit" disabled={isSubmitting} className="group relative w-full overflow-hidden rounded-2xl border-2 border-forest bg-forest px-5 py-4 font-semibold text-cream shadow-[0_10px_0_#c98b4a,0_18px_30px_rgba(36,76,53,0.16)] transition-all duration-200 hover:-translate-y-0.5 hover:bg-leaf hover:shadow-[0_12px_0_#c98b4a,0_22px_34px_rgba(36,76,53,0.2)] focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-goldSoft active:translate-y-1 active:shadow-[0_5px_0_#c98b4a,0_10px_18px_rgba(36,76,53,0.14)] disabled:cursor-not-allowed disabled:translate-y-0 disabled:opacity-60 disabled:shadow-[0_6px_0_#9f744b,0_10px_18px_rgba(36,76,53,0.1)]">
+          <span className="relative z-10 flex items-center justify-center gap-2">
+            <span className="inline-flex h-6 w-6 items-center justify-center rounded-full border border-goldSoft/60 bg-goldSoft/15 text-sm text-goldSoft transition-transform duration-200 group-hover:rotate-12">
+              {isSubmitting ? "..." : "→"}
+            </span>
+            <span>{isSubmitting ? "Saving profile and finding matches..." : "Submit and see matched opportunities"}</span>
+          </span>
         </button>
       </form>
     </main>

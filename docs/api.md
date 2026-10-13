@@ -44,10 +44,15 @@ Request body:
   "title": "Agri Data Intern",
   "description": "Support field data capture and reporting.",
   "category": "job",
+  "applicationEmail": "careers@example.com",
   "location": "Cape Town",
   "requiredSkills": ["Data capture", "Reporting"]
 }
 ```
+
+### GET /api/opportunities/{jobs|learnerships|bursaries|funding}
+
+Returns available opportunities in one category, ranked by the signed-in learner's skill and location match. Each result includes `matchScore`. These category-specific endpoints can also be called independently of the Marketplace UI.
 
 ### GET /api/v1/opportunities/[id]
 
@@ -55,23 +60,17 @@ Fetches the details of a single opportunity.
 
 ### POST /api/v1/applications
 
-Learners can submit an application to a specific opportunity.
+Learners submit an application as `multipart/form-data` with `opportunityId`, a 10-2,000 character `coverNote`, a CV file (`cv`, PDF/DOC/DOCX up to 10 MB), and an optional `qualificationDocument` (PDF/JPG/PNG up to 10 MB). The application is saved before email delivery is attempted. The system emails the CV and application details to the opportunity's `applicationEmail`, and sends a confirmation to the learner. If delivery fails, the saved application response includes `emailDelivery.complete: false` and can be retried from `POST /api/v1/applications/[id]/retry-email`.
 
-Request body:
-
-```json
-{
-  "opportunityId": "opp-1"
-}
-```
+Applications are rejected if the learner has already applied or the opportunity is closed/expired. A failed email does not remove the application.
 
 ### GET /api/v1/applications
 
-Returns the currently logged in learner's applications.
+Returns the currently logged in learner's applications, including status history and email-delivery state.
 
 ### PATCH /api/v1/applications/[id]
 
-Employer/admin updates application status.
+Employer/admin updates application status. Allowed values are `submitted`, `under_review`, `shortlisted`, `interview`, `successful`, and `unsuccessful`. Each change is added to application status history and emailed to the learner.
 
 Request body:
 

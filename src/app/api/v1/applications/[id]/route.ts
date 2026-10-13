@@ -8,7 +8,7 @@ import { updateEmployerApplication } from "@/lib/database";
 import { sendApplicationUpdateEmail } from "@/lib/email";
 
 const statusSchema = z.object({
-  status: z.enum(["submitted", "under_review", "shortlisted", "accepted", "rejected"]).optional(),
+  status: z.enum(["submitted", "under_review", "shortlisted", "interview", "successful", "unsuccessful"]).optional(),
   verify: z.boolean().optional(),
   place: z.boolean().optional(),
 });
@@ -64,14 +64,19 @@ export async function PATCH(
       : parsed.data.verify
         ? "application_verified"
         : "application_status_changed";
-    const emailResult = await sendApplicationUpdateEmail({
-      recipient: updated.user.email,
-      applicantName: updated.user.fullName,
-      opportunityTitle: updated.opportunity.title,
-      status: updated.status,
-      verified: Boolean(updated.verifiedAt),
-      placed: Boolean(updated.placedAt),
-    });
+    let emailResult = { sent: false, reason: "Application updated, but the status email could not be sent." };
+    try {
+      emailResult = await sendApplicationUpdateEmail({
+        recipient: updated.user.email,
+        applicantName: updated.user.fullName,
+        opportunityTitle: updated.opportunity.title,
+        status: updated.status,
+        verified: Boolean(updated.verifiedAt),
+        placed: Boolean(updated.placedAt),
+      });
+    } catch (emailError) {
+      emailResult.reason = emailError instanceof Error ? emailError.message : emailResult.reason;
+    }
 
     await addAuditEntry({
       action,
@@ -88,7 +93,7 @@ export async function PATCH(
       details: emailResult.reason,
     });
 
-    return NextResponse.json({ application: updated });
+    return NextResponse.json({ application: updated, ...(emailResult.sent ? {} : { emailWarning: emailResult.reason }) });
   } catch (error) {
     return NextResponse.json(
       { error: error instanceof Error ? error.message : "Unable to update application status." },

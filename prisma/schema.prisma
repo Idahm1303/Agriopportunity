@@ -41,6 +41,7 @@ model Opportunity {
   description        String
   category           String
   location           String?
+  applicationEmail   String?
   requiredSkills     String[]
   postedBy           User               @relation("PostedBy", fields: [postedById], references: [id])
   postedById         String
@@ -65,6 +66,11 @@ model Application {
   opportunityId             String
   status                    String      @default("submitted")
   matchScore                Float?
+  coverNote                 String?
+  cvUrl                     String?
+  employerEmailSentAt       DateTime?
+  learnerEmailSentAt        DateTime?
+  emailError                String?
   qualificationDocumentName String?
   extractedText             String?
   extractedQualifications   String[]    @default([])
@@ -75,7 +81,20 @@ model Application {
   placedAt                  DateTime?
   placedBy                  String?
   createdAt                 DateTime    @default(now())
+  updatedAt                 DateTime    @updatedAt
   documents                 Document[]
+  statusHistory             ApplicationStatusHistory[]
+
+  @@unique([userId, opportunityId])
+}
+
+model ApplicationStatusHistory {
+  id            String      @id @default(uuid())
+  application   Application @relation(fields: [applicationId], references: [id], onDelete: Cascade)
+  applicationId String
+  status        String
+  changedBy     String?
+  changedAt     DateTime    @default(now())
 }
 
 model Document {

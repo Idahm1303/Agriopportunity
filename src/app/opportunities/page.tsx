@@ -34,7 +34,7 @@ export default async function OpportunitiesPage({
       <OpportunitiesBrowser
         opportunities={opportunities}
         currentUser={learner}
-        initialCategory={category === "funding" ? "funding" : "all"}
+        initialCategory={category && ["job", "jobs", "learnership", "learnerships", "bursary", "bursaries", "funding"].includes(category) ? category : "jobs"}
         onlyMatched={matched === "true"}
       />
     </main>

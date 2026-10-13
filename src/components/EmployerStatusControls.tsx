@@ -33,9 +33,9 @@ export function EmployerStatusControls({
       if (body.verify) setVerified(true);
       if (body.place) {
         setPlaced(true);
-        setStatus("placed");
+        setStatus("successful");
       }
-      setMessage(body.verify ? "Application verified." : "Candidate placed.");
+      setMessage(body.verify ? "Application verified." : "Candidate marked successful.");
     } catch (error) {
       setMessage(error instanceof Error ? error.message : "Unable to update application.");
     } finally {
@@ -63,7 +63,7 @@ export function EmployerStatusControls({
         throw new Error(payload.error ?? "Unable to update application status.");
       }
 
-      setMessage("Application status updated.");
+      setMessage(payload.emailWarning ?? "Application status updated.");
     } catch (error) {
       setMessage(
         error instanceof Error ? error.message : "Unable to update application status.",
@@ -87,9 +87,9 @@ export function EmployerStatusControls({
         <option value="submitted">Submitted</option>
         <option value="under_review">Under review</option>
         <option value="shortlisted">Shortlisted</option>
-        <option value="accepted">Accepted</option>
-        <option value="rejected">Rejected</option>
-        <option value="placed">Placed</option>
+        <option value="interview">Interview</option>
+        <option value="successful">Successful</option>
+        <option value="unsuccessful">Unsuccessful</option>
       </select>
 
       <button

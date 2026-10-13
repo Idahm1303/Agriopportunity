@@ -12,26 +12,33 @@ export function EmployerOpportunityForm() {
     setIsSaving(true);
     setMessage(null);
     const form = new FormData(event.currentTarget);
-    const response = await fetch("/api/v1/opportunities", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        title: form.get("title"),
-        description: form.get("description"),
-        category: form.get("category"),
-        location: form.get("location"),
-        expiresAt: form.get("expiresAt") || undefined,
-        requiredSkills: String(form.get("requiredSkills") ?? "").split(",").map((skill) => skill.trim()).filter(Boolean),
-      }),
-    });
-    const payload = await response.json();
-    setIsSaving(false);
-    if (!response.ok) {
-      setMessage(payload.error ?? "Unable to create opportunity.");
-      return;
+    try {
+      const response = await fetch("/api/v1/opportunities", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          title: form.get("title"),
+          description: form.get("description"),
+          category: form.get("category"),
+          applicationEmail: form.get("applicationEmail"),
+          location: form.get("location"),
+          expiresAt: form.get("expiresAt") || undefined,
+          requiredSkills: String(form.get("requiredSkills") ?? "").split(",").map((skill) => skill.trim()).filter(Boolean),
+        }),
+      });
+      const payload = await response.json();
+      if (!response.ok) {
+        setMessage(payload.error ?? "Unable to create opportunity.");
+        return;
+      }
+      setMessage("Opportunity saved as a draft. Refresh the page to publish it.");
+      event.currentTarget.reset();
+      window.location.reload();
+    } catch {
+      setMessage("Unable to reach the server. Please try again.");
+    } finally {
+      setIsSaving(false);
     }
-    setMessage("Opportunity saved as a draft. Publish it below when ready.");
-    event.currentTarget.reset();
   };
 
   return (
@@ -45,6 +52,7 @@ export function EmployerOpportunityForm() {
           <select name="category" required defaultValue="job" className="rounded-xl border border-inkSoft/20 bg-white px-3 py-3 text-ink">
             <option value="job">Job</option><option value="learnership">Learnership</option><option value="bursary">Bursary</option><option value="funding">Funding</option>
           </select>
+          <input name="applicationEmail" type="email" required placeholder="Email for applications" className="rounded-xl border border-inkSoft/20 bg-white px-3 py-3 text-ink" />
           <input name="location" placeholder="Location" className="rounded-xl border border-inkSoft/20 bg-white px-3 py-3 text-ink" />
           <input name="expiresAt" type="date" className="rounded-xl border border-inkSoft/20 bg-white px-3 py-3 text-ink" />
           <input name="requiredSkills" placeholder="Required skills, separated by commas" required className="rounded-xl border border-inkSoft/20 bg-white px-3 py-3 text-ink md:col-span-2" />

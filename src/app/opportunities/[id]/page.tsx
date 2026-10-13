@@ -62,6 +62,14 @@ export default async function OpportunityDetailPage({ params }: { params: Promis
                 <dd>{opportunity.location ?? "Flexible / remote"}</dd>
               </div>
               <div>
+                <dt className="font-medium text-ink">Organisation</dt>
+                <dd>{opportunity.organizationName ?? "Provider"}</dd>
+              </div>
+              <div>
+                <dt className="font-medium text-ink">Closing date</dt>
+                <dd>{opportunity.expiresAt ? new Date(opportunity.expiresAt).toLocaleDateString() : "Not specified"}</dd>
+              </div>
+              <div>
                 <dt className="font-medium text-ink">Status</dt>
                 <dd>{opportunity.status}</dd>
               </div>

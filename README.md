@@ -42,6 +42,11 @@ NEXTAUTH_SECRET="your-secret"
 NEXTAUTH_URL="http://localhost:3000"
 OPENAI_API_KEY="your-openai-api-key"
 OPENAI_MODEL="gpt-4o-mini"
+AWS_S3_BUCKET="agriopportunity-documents"
+AWS_ENDPOINT_URL_S3="https://your-neon-object-storage-endpoint"
+AWS_REGION="aws-eu-central-1"
+AWS_ACCESS_KEY_ID="your-neon-storage-access-key"
+AWS_SECRET_ACCESS_KEY="your-neon-storage-secret-key"
 ```
 
 ## Demo accounts
@@ -52,6 +57,10 @@ The MVP includes seeded demo data for quick testing:
 - Employer: employer@agriopportunity.co.za / Password123!
 
 Applications require a qualification document upload. The server sends PDF, JPG, and PNG documents to the configured OpenAI model for text, qualification, and skill extraction, then scores the extracted skills against the opportunity requirements. Documents are limited to 10 MB and the demo application store keeps extracted results in memory.
+
+Uploaded documents are stored in the configured private Neon Object Storage bucket using its S3-compatible endpoint. Provision the bucket and credentials with Neon Object Storage, then add the `AWS_S3_BUCKET`, `AWS_ENDPOINT_URL_S3`, `AWS_REGION`, `AWS_ACCESS_KEY_ID`, and `AWS_SECRET_ACCESS_KEY` variables to `.env.local` before testing uploads.
+
+The repository declares the private bucket in `neon.ts`. After linking this project to the target Neon project and branch, run `neon deploy` (or `neon env pull`) to provision the bucket and retrieve the S3-compatible environment variables. Do not commit those credentials.
 
 ## Available routes
 

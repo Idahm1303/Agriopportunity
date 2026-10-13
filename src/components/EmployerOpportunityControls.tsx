@@ -13,7 +13,12 @@ export function EmployerOpportunityControls({ opportunityId, status }: { opportu
       body: JSON.stringify({ status: nextStatus }),
     });
     const payload = await response.json();
-    setMessage(response.ok ? `Opportunity ${nextStatus === "open" ? "published" : "closed"}. Refresh to update the list.` : payload.error);
+    if (response.ok) {
+      setMessage(`Opportunity ${nextStatus === "open" ? "published" : "closed"}.`);
+      window.location.reload();
+    } else {
+      setMessage(payload.error ?? "Unable to update opportunity.");
+    }
   };
 
   return (

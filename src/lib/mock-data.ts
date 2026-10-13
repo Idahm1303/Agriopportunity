@@ -23,6 +23,9 @@ export type Opportunity = {
   description: string;
   category: string;
   location?: string | null;
+  applicationEmail?: string | null;
+  organizationName?: string | null;
+  matchScore?: number;
   requiredSkills: string[];
   postedById: string;
   status: string;
@@ -39,6 +42,11 @@ export type Application = {
   status: string;
   matchScore?: number | null;
   qualificationDocumentName?: string | null;
+  coverNote?: string | null;
+  cvUrl?: string | null;
+  emailError?: string | null;
+  updatedAt?: string;
+  statusHistory?: { status: string; changedAt: string }[];
   extractedText?: string | null;
   extractedQualifications: string[];
   extractedSkills: string[];

@@ -5,6 +5,7 @@ import { z } from "zod";
 import { authOptions } from "@/lib/auth";
 import { createDocument, findUserById, updateUserProfile } from "@/lib/database";
 import { extractQualification } from "@/lib/qualification-ocr";
+import { uploadDocument } from "@/lib/object-storage";
 
 const profileSchema = z.object({
   phoneNumber: z.string().min(7, "Enter a valid contact number."),
@@ -51,7 +52,9 @@ export async function POST(request: Request) {
     const document = formData.get("qualificationDocument");
     let extractedSkills: string[] = [];
     let extractedQualifications: string[] = [];
+    let extractedText: string | undefined;
     let extractionConfidence: number | undefined;
+    let storageKey: string | undefined;
 
     if (document instanceof File && document.size > 0) {
       if (!allowedDocumentTypes.has(document.type)) {
@@ -61,7 +64,9 @@ export async function POST(request: Request) {
         return NextResponse.json({ error: "The document must be smaller than 10 MB." }, { status: 400 });
       }
 
+      storageKey = await uploadDocument({ file: document, userId, documentType: "qualification" });
       const extraction = await extractQualification(document);
+      extractedText = extraction.extractedText;
       extractedSkills = extraction.skills;
       extractedQualifications = extraction.qualifications;
       extractionConfidence = extraction.confidence;
@@ -84,6 +89,8 @@ export async function POST(request: Request) {
         userId,
         documentType: "qualification",
         fileName: document.name,
+        storageUrl: storageKey,
+        extractedText,
         extractedQualifications,
         extractedSkills,
         confidence: extractionConfidence,

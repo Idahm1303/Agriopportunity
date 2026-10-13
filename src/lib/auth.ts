@@ -4,9 +4,22 @@ import { compare } from "bcryptjs";
 
 import { findUserByEmail } from "@/lib/database";
 
+const useSecureCookies = process.env.NEXTAUTH_URL?.startsWith("https://") ?? false;
+
 export const authOptions: NextAuthOptions = {
   session: {
     strategy: "jwt",
+  },
+  cookies: {
+    sessionToken: {
+      name: "agriopportunity.session-token",
+      options: {
+        httpOnly: true,
+        sameSite: "lax",
+        path: "/",
+        secure: useSecureCookies,
+      },
+    },
   },
   providers: [
     CredentialsProvider({
