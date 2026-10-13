@@ -44,7 +44,7 @@ export function EmployerOpportunityForm() {
   return (
     <div>
       <button type="button" onClick={() => setOpen((value) => !value)} className="rounded-full bg-forest px-5 py-3 text-sm font-medium text-cream hover:bg-leaf">
-        {open ? "Close form" : "Load opportunity"}
+        {open ? "Close form" : "Create opportunity"}
       </button>
       {open ? (
         <form onSubmit={submit} className="mt-5 grid gap-4 rounded-2xl border border-forest/10 bg-cream p-5 md:grid-cols-2">

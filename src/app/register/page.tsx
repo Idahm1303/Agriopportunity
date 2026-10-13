@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { signIn } from "next-auth/react";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 
@@ -30,8 +31,12 @@ export default function RegisterPage() {
         },
         body: JSON.stringify({
           ...form,
-          skills: ["Crop science", "Farm operations"],
-          qualifications: ["National Diploma"],
+          fullName: form.fullName.trim(),
+          email: form.email.trim().toLowerCase(),
+          organizationName: form.organizationName.trim(),
+          location: form.location.trim(),
+          skills: form.role === "LEARNER" ? ["Crop science", "Farm operations"] : [],
+          qualifications: form.role === "LEARNER" ? ["National Diploma"] : [],
         }),
       });
 
@@ -40,7 +45,19 @@ export default function RegisterPage() {
         throw new Error(payload.error ?? "Registration failed.");
       }
 
-      router.push("/login");
+      const login = await signIn("credentials", {
+        email: form.email.trim().toLowerCase(),
+        password: form.password,
+        organizationName: form.organizationName.trim(),
+        redirect: false,
+      });
+
+      if (login?.error) {
+        router.push(`/login?email=${encodeURIComponent(form.email.trim().toLowerCase())}&organizationName=${encodeURIComponent(form.organizationName.trim())}`);
+      } else {
+        router.push(form.role === "EMPLOYER" ? "/employer/dashboard" : "/profile");
+      }
+      router.refresh();
     } catch (submitError) {
       setError(submitError instanceof Error ? submitError.message : "Registration failed.");
     } finally {
@@ -58,7 +75,9 @@ export default function RegisterPage() {
           <p className="mt-6 text-sm font-semibold uppercase tracking-[0.2em] text-goldSoft">Join AgriOpportunity</p>
           <h1 className="mt-4 font-display text-4xl text-cream lg:text-5xl">Create your account</h1>
           <p className="mt-5 max-w-md text-base leading-7 text-cream/90">
-            Sign up as a learner, employer, or admin to unlock tailored agricultural opportunities and application tracking.
+              {form.role === "EMPLOYER"
+                ? "Create an organisation account to post opportunities, receive applications, and manage applicant progress."
+                : "Create a learner account to find opportunities that match your skills and track your applications."}
           </p>
           <div className="mt-8 space-y-4">
             {[
@@ -77,11 +96,11 @@ export default function RegisterPage() {
         <form onSubmit={handleSubmit} className="space-y-5 p-8 lg:p-12">
           <div>
             <p className="text-sm font-semibold uppercase tracking-[0.2em] text-leaf">Get started</p>
-            <h2 className="mt-3 font-display text-3xl text-forest">Build your profile</h2>
+            <h2 className="mt-3 font-display text-3xl text-forest">{form.role === "EMPLOYER" ? "Create employer account" : "Build your profile"}</h2>
           </div>
 
           <div>
-            <label className="mb-2 block text-sm font-medium text-ink" htmlFor="fullName">Full name</label>
+            <label className="mb-2 block text-sm font-medium text-ink" htmlFor="fullName">{form.role === "EMPLOYER" ? "Your name" : "Full name"}</label>
             <input
               id="fullName"
               value={form.fullName}
@@ -108,6 +127,7 @@ export default function RegisterPage() {
             <input
               id="password"
               type="password"
+              minLength={8}
               value={form.password}
               onChange={(event) => setForm({ ...form, password: event.target.value })}
               className="w-full rounded-xl border border-inkSoft/20 bg-cream px-3 py-3 text-base text-ink focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-goldSoft"
@@ -130,7 +150,7 @@ export default function RegisterPage() {
 
           {form.role === "EMPLOYER" ? (
             <div>
-              <label className="mb-2 block text-sm font-medium text-ink" htmlFor="organizationName">Organisation</label>
+              <label className="mb-2 block text-sm font-medium text-ink" htmlFor="organizationName">Organisation name</label>
               <input
                 id="organizationName"
                 value={form.organizationName}
@@ -138,6 +158,7 @@ export default function RegisterPage() {
                 className="w-full rounded-xl border border-inkSoft/20 bg-cream px-3 py-3 text-base text-ink focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-goldSoft"
                 required
               />
+              <p className="mt-2 text-xs text-inkSoft">Use the organisation name applicants will see on your listings.</p>
             </div>
           ) : null}
 
@@ -158,7 +179,7 @@ export default function RegisterPage() {
             disabled={isSubmitting}
             className="inline-flex w-full items-center justify-center rounded-full bg-forest px-5 py-3.5 font-medium text-cream shadow-lg shadow-forest/15 transition hover:bg-leaf disabled:cursor-not-allowed disabled:opacity-60 focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-goldSoft"
           >
-            {isSubmitting ? "Creating account..." : "Create account"}
+              {isSubmitting ? "Creating account..." : form.role === "EMPLOYER" ? "Create employer account" : "Create account"}
           </button>
 
           <p className="text-sm text-inkSoft">

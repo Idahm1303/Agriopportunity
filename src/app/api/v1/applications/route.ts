@@ -34,8 +34,12 @@ export async function GET(request: Request) {
 
   if (role === "EMPLOYER" || role === "ADMIN") {
     if (!userId) return NextResponse.json({ error: "User session missing." }, { status: 400 });
-    const category = new URL(request.url).searchParams.get("category") ?? undefined;
-    return NextResponse.json({ applications: await getEmployerApplications(userId, role === "ADMIN", category) });
+    const searchParams = new URL(request.url).searchParams;
+    return NextResponse.json({ applications: await getEmployerApplications(userId, role === "ADMIN", {
+      category: searchParams.get("category") ?? undefined,
+      field: searchParams.get("field") ?? undefined,
+      verification: searchParams.get("verification") ?? undefined,
+    }) });
   }
 
   if (!userId) {

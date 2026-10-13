@@ -26,8 +26,8 @@ export default async function OpportunitiesPage({
           <p className="text-sm font-semibold uppercase tracking-[0.2em] text-leaf">Explore</p>
           <h1 className="mt-3 font-display text-4xl text-forest">Opportunity marketplace</h1>
         </div>
-        <a href="/dashboard" className="text-sm font-medium text-forest underline-offset-4 hover:underline">
-          My dashboard
+        <a href="/dashboard" className="inline-flex min-h-11 items-center justify-center rounded-xl border border-forest/20 bg-white px-4 py-2 text-sm font-semibold text-forest shadow-sm transition hover:bg-cream2 focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-goldSoft">
+          Track application status
         </a>
       </div>
 

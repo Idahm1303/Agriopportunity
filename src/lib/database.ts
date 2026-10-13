@@ -49,7 +49,7 @@ function mapApplication(application: Prisma.ApplicationGetPayload<object>): Appl
     coverNote: application.coverNote,
     cvUrl: application.cvUrl,
     emailError: application.emailError,
-    updatedAt: application.updatedAt.toISOString(),
+    updatedAt: application.updatedAt?.toISOString() ?? application.createdAt.toISOString(),
     qualificationDocumentName: application.qualificationDocumentName,
     extractedText: application.extractedText,
     extractedQualifications: application.extractedQualifications,
@@ -192,6 +192,20 @@ export async function unsaveOpportunity(applicantId: string, opportunityId: stri
   return prisma.savedOpportunity.deleteMany({ where: { applicantId, opportunityId } });
 }
 
+export async function getSavedOpportunities(applicantId: string) {
+  const saved = await prisma.savedOpportunity.findMany({
+    where: { applicantId },
+    include: { opportunity: { select: { id: true, title: true, category: true, location: true, status: true, expiresAt: true } } },
+    orderBy: { savedAt: "desc" },
+  });
+
+  return saved.map((item) => ({
+    ...item.opportunity,
+    savedAt: item.savedAt.toISOString(),
+    expiresAt: item.opportunity.expiresAt?.toISOString() ?? null,
+  }));
+}
+
 export async function createOpportunityReport(input: { opportunityId: string; reporterUserId: string; reason: string }) {
   return prisma.$transaction(async (transaction) => {
     const report = await transaction.report.create({ data: input });
@@ -285,10 +299,15 @@ export const getRecommendedBursaries = (skills: string[], location?: string | nu
 export const getRecommendedFunding = (skills: string[], location?: string | null) => getRecommendedCategory("funding", skills, location);
 
 export async function getEmployerOpportunities(userId: string, isAdmin: boolean) {
-  return prisma.opportunity.findMany({
+  const opportunities = await prisma.opportunity.findMany({
     where: isAdmin ? undefined : { postedById: userId },
+    include: { postedBy: { select: { email: true } } },
     orderBy: { createdAt: "desc" },
   });
+  return opportunities.map((opportunity) => ({
+    ...opportunity,
+    applicationEmail: opportunity.applicationEmail ?? opportunity.postedBy.email,
+  }));
 }
 
 export async function createOpportunity(input: {
@@ -322,31 +341,53 @@ export async function createOpportunity(input: {
 export async function getUserApplications(userId: string) {
   const applications = await prisma.application.findMany({
     where: { userId },
-    include: {
-      opportunity: { select: { title: true } },
-      statusHistory: { orderBy: { changedAt: "asc" }, select: { status: true, changedAt: true } },
-    },
+    include: { opportunity: { select: { title: true } } },
     orderBy: { createdAt: "desc" },
   });
+  const history = applications.length
+    ? await prisma.$queryRaw<Array<{ applicationId: string; status: string; changedAt: Date }>>(Prisma.sql`
+        SELECT "applicationId", "status", "changedAt"
+        FROM "ApplicationStatusHistory"
+        WHERE "applicationId" IN (${Prisma.join(applications.map((application) => application.id))})
+        ORDER BY "changedAt" ASC
+      `)
+    : [];
+  const historyByApplication = new Map<string, { status: string; changedAt: string }[]>();
+  for (const entry of history) {
+    const entries = historyByApplication.get(entry.applicationId) ?? [];
+    entries.push({ status: entry.status, changedAt: entry.changedAt.toISOString() });
+    historyByApplication.set(entry.applicationId, entries);
+  }
 
   return applications.map((application) => ({
     ...mapApplication(application),
     opportunityTitle: application.opportunity.title,
     employerEmailSentAt: application.employerEmailSentAt?.toISOString() ?? null,
     learnerEmailSentAt: application.learnerEmailSentAt?.toISOString() ?? null,
-    statusHistory: application.statusHistory.map((entry) => ({ status: entry.status, changedAt: entry.changedAt.toISOString() })),
+    statusHistory: historyByApplication.get(application.id) ?? [],
   }));
 }
 
-export async function getEmployerApplications(userId: string, isAdmin: boolean, category?: string) {
+export async function getEmployerApplications(
+  userId: string,
+  isAdmin: boolean,
+  filters?: string | { category?: string; field?: string; verification?: string },
+) {
+  const normalizedFilters = typeof filters === "string" ? { category: filters } : filters ?? {};
+  const opportunityFilter = {
+    ...(!isAdmin ? { postedById: userId } : {}),
+    ...(normalizedFilters.category && normalizedFilters.category !== "all" ? { category: normalizedFilters.category } : {}),
+    ...(normalizedFilters.field ? { requiredSkills: { has: normalizedFilters.field } } : {}),
+  };
   const applications = await prisma.application.findMany({
     where: {
-      ...(isAdmin ? {} : { opportunity: { postedById: userId } }),
-      ...(category && category !== "all" ? { opportunity: { category, ...(isAdmin ? {} : { postedById: userId }) } } : {}),
+      opportunity: opportunityFilter,
+      ...(normalizedFilters.verification === "verified" ? { verifiedAt: { not: null } } : {}),
+      ...(normalizedFilters.verification === "unverified" ? { verifiedAt: null } : {}),
     },
     include: {
-      opportunity: { select: { title: true } },
-      user: { select: { fullName: true, email: true } },
+      opportunity: { select: { title: true, category: true, requiredSkills: true } },
+      user: { select: { fullName: true, email: true, skills: true, qualifications: true } },
     },
     orderBy: [{ matchScore: "desc" }, { createdAt: "desc" }],
   });
@@ -354,8 +395,12 @@ export async function getEmployerApplications(userId: string, isAdmin: boolean, 
   return applications.map((application) => ({
     ...mapApplication(application),
     opportunityTitle: application.opportunity.title,
+    opportunityCategory: application.opportunity.category,
+    requiredSkills: application.opportunity.requiredSkills,
     applicantName: application.user.fullName,
     applicantEmail: application.user.email,
+    applicantSkills: application.user.skills,
+    applicantQualifications: application.user.qualifications,
     verifiedAt: application.verifiedAt?.toISOString() ?? null,
     placedAt: application.placedAt?.toISOString() ?? null,
   }));
@@ -381,7 +426,8 @@ export async function createApplication(input: {
   });
   if (existingApplication) return null;
 
-  const { matchedSkills, score } = calculateMatch(opportunity.requiredSkills, input.extractedSkills);
+  const applicationSkills = Array.from(new Set([...user.skills, ...input.extractedSkills]));
+  const { matchedSkills, score } = calculateMatch(opportunity.requiredSkills, applicationSkills);
   const application = await prisma.application.create({
     data: {
       userId: input.userId,
@@ -469,6 +515,37 @@ export async function updateOpportunityStatus(input: { id: string; employerId: s
       status: input.status,
       ...(input.status === "open" ? { publishedAt: new Date(), closedAt: null } : {}),
       ...(input.status === "closed" ? { closedAt: new Date() } : {}),
+    },
+  });
+}
+
+export async function updateOpportunityDetails(input: {
+  id: string;
+  employerId: string;
+  isAdmin: boolean;
+  title: string;
+  description: string;
+  category: string;
+  applicationEmail: string;
+  location?: string | null;
+  requiredSkills: string[];
+  expiresAt?: Date | null;
+}) {
+  const opportunity = await prisma.opportunity.findFirst({
+    where: { id: input.id, ...(input.isAdmin ? {} : { postedById: input.employerId }) },
+  });
+  if (!opportunity) return null;
+
+  return prisma.opportunity.update({
+    where: { id: input.id },
+    data: {
+      title: input.title,
+      description: input.description,
+      category: input.category,
+      applicationEmail: input.applicationEmail.toLowerCase(),
+      location: input.location ?? null,
+      requiredSkills: input.requiredSkills,
+      ...(input.expiresAt !== undefined ? { expiresAt: input.expiresAt } : {}),
     },
   });
 }

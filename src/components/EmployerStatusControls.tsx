@@ -1,5 +1,6 @@
 "use client";
 
+import { useRouter } from "next/navigation";
 import { useState } from "react";
 
 export function EmployerStatusControls({
@@ -13,6 +14,7 @@ export function EmployerStatusControls({
   initialVerified?: boolean;
   initialPlaced?: boolean;
 }) {
+  const router = useRouter();
   const [status, setStatus] = useState(initialStatus);
   const [verified, setVerified] = useState(initialVerified);
   const [placed, setPlaced] = useState(initialPlaced);
@@ -35,7 +37,8 @@ export function EmployerStatusControls({
         setPlaced(true);
         setStatus("successful");
       }
-      setMessage(body.verify ? "Application verified." : "Candidate marked successful.");
+      setMessage(payload.emailWarning ?? (body.verify ? "Application verified." : "Candidate marked successful."));
+      router.refresh();
     } catch (error) {
       setMessage(error instanceof Error ? error.message : "Unable to update application.");
     } finally {
@@ -43,8 +46,7 @@ export function EmployerStatusControls({
     }
   };
 
-  const handleSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
-    event.preventDefault();
+  const saveStatus = async (nextStatus: string) => {
     setIsSaving(true);
     setMessage(null);
 
@@ -54,7 +56,7 @@ export function EmployerStatusControls({
         headers: {
           "Content-Type": "application/json",
         },
-        body: JSON.stringify({ status }),
+        body: JSON.stringify({ status: nextStatus }),
       });
 
       const payload = await response.json();
@@ -63,7 +65,9 @@ export function EmployerStatusControls({
         throw new Error(payload.error ?? "Unable to update application status.");
       }
 
-      setMessage(payload.emailWarning ?? "Application status updated.");
+      setStatus(nextStatus);
+      setMessage(payload.emailWarning ?? `Applicant marked ${nextStatus.replaceAll("_", " ")}. Email notification sent.`);
+      router.refresh();
     } catch (error) {
       setMessage(
         error instanceof Error ? error.message : "Unable to update application status.",
@@ -71,6 +75,11 @@ export function EmployerStatusControls({
     } finally {
       setIsSaving(false);
     }
+  };
+
+  const handleSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    await saveStatus(status);
   };
 
   return (
@@ -98,6 +107,13 @@ export function EmployerStatusControls({
         className="rounded-full bg-gold px-4 py-2 text-sm font-medium text-ink transition hover:bg-goldSoft focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-goldSoft"
       >
         {isSaving ? "Saving..." : "Update"}
+      </button>
+
+      <button type="button" disabled={isSaving} onClick={() => saveStatus("shortlisted")} className="rounded-lg border border-forest/20 bg-white px-3 py-2 text-sm font-medium text-forest disabled:opacity-50">
+        Shortlist
+      </button>
+      <button type="button" disabled={isSaving} onClick={() => saveStatus("unsuccessful")} className="rounded-lg border border-red-200 bg-white px-3 py-2 text-sm font-medium text-red-700 disabled:opacity-50">
+        Reject
       </button>
 
       <button type="button" disabled={isSaving || verified} onClick={() => runAction({ verify: true })} className="rounded-full border border-forest/20 px-4 py-2 text-sm font-medium text-forest hover:bg-cream2 disabled:opacity-50">

@@ -81,6 +81,9 @@ export default async function OpportunityDetailPage({ params }: { params: Promis
 
             <div className="mt-6">
               <ApplyButton opportunityId={opportunity.id} />
+              <Link href="/dashboard" className="mt-4 inline-flex min-h-11 items-center justify-center rounded-xl border border-forest/20 bg-white px-4 py-2 text-sm font-semibold text-forest transition hover:bg-cream2 focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-goldSoft">
+                Track application status
+              </Link>
               <OpportunityActions opportunityId={opportunity.id} />
             </div>
           </aside>

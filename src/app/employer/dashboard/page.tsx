@@ -7,21 +7,28 @@ import { redirect } from "next/navigation";
 import { authOptions } from "@/lib/auth";
 import { findUserById, getEmployerApplications, getEmployerOpportunities } from "@/lib/database";
 
-export default async function EmployerDashboardPage({ searchParams }: { searchParams: Promise<{ category?: string | string[] }> }) {
+export default async function EmployerDashboardPage({ searchParams }: { searchParams: Promise<{ category?: string | string[]; field?: string | string[]; verification?: string | string[] }> }) {
   const query = await searchParams;
   const category = Array.isArray(query.category) ? query.category[0] ?? "all" : query.category ?? "all";
+  const field = Array.isArray(query.field) ? query.field[0] ?? "all" : query.field ?? "all";
+  const verification = Array.isArray(query.verification) ? query.verification[0] ?? "all" : query.verification ?? "all";
   const session = await getServerSession(authOptions);
   const userId = (session?.user as { userId?: string } | undefined)?.userId;
   const role = (session?.user as { role?: string } | undefined)?.role;
   if (!session) redirect("/login?callbackUrl=/employer/dashboard");
   if (role !== "EMPLOYER" && role !== "ADMIN") redirect("/dashboard");
   const employer = userId ? await findUserById(userId) : undefined;
-  const applications = userId && (role === "EMPLOYER" || role === "ADMIN")
-    ? await getEmployerApplications(userId, role === "ADMIN", category)
-    : [];
-  const opportunities = userId && (role === "EMPLOYER" || role === "ADMIN")
-    ? await getEmployerOpportunities(userId, role === "ADMIN")
-    : [];
+  const [applications, opportunities] = userId
+    ? await Promise.all([
+        getEmployerApplications(userId, role === "ADMIN", {
+          category,
+          field: field === "all" ? undefined : field,
+          verification,
+        }),
+        getEmployerOpportunities(userId, role === "ADMIN"),
+      ])
+    : [[], []];
+  const availableFields = Array.from(new Set(opportunities.flatMap((opportunity) => opportunity.requiredSkills))).sort((left, right) => left.localeCompare(right));
 
   return (
     <main className="mx-auto max-w-6xl px-4 py-12 sm:px-6 lg:px-8">
@@ -37,16 +44,29 @@ export default async function EmployerDashboardPage({ searchParams }: { searchPa
           <EmployerOpportunityForm />
         </div>
 
-        <form className="mb-6 flex flex-wrap items-center gap-3" method="get">
-          <label htmlFor="category" className="text-sm font-medium text-ink">Filter by category</label>
-          <select id="category" name="category" defaultValue={category} className="rounded-xl border border-inkSoft/20 bg-white px-3 py-2 text-sm text-ink">
+        <form className="mb-6 grid gap-3 rounded-xl bg-cream p-4 sm:grid-cols-2 lg:grid-cols-4" method="get">
+          <label htmlFor="category" className="text-sm font-medium text-ink">Opportunity category
+          <select id="category" name="category" defaultValue={category} className="mt-1 block w-full rounded-xl border border-inkSoft/20 bg-white px-3 py-2 text-sm text-ink">
             <option value="all">All categories</option><option value="job">Job</option><option value="learnership">Learnership</option><option value="bursary">Bursary</option><option value="funding">Funding</option>
           </select>
-          <button className="rounded-full border border-forest/20 px-4 py-2 text-sm font-medium text-forest">Filter</button>
-          <span className="text-sm text-inkSoft">Applications are ranked by qualification match.</span>
+          </label>
+          <label htmlFor="field" className="text-sm font-medium text-ink">Field of interest
+            <select id="field" name="field" defaultValue={field} className="mt-1 block w-full rounded-xl border border-inkSoft/20 bg-white px-3 py-2 text-sm text-ink">
+              <option value="all">All fields</option>
+              {availableFields.map((availableField) => <option key={availableField} value={availableField}>{availableField}</option>)}
+            </select>
+          </label>
+          <label htmlFor="verification" className="text-sm font-medium text-ink">Qualification verification
+            <select id="verification" name="verification" defaultValue={verification} className="mt-1 block w-full rounded-xl border border-inkSoft/20 bg-white px-3 py-2 text-sm text-ink">
+              <option value="all">All applicants</option><option value="verified">Verified</option><option value="unverified">Not verified</option>
+            </select>
+          </label>
+          <div className="flex items-end"><button className="w-full rounded-xl bg-forest px-4 py-2.5 text-sm font-semibold text-white hover:bg-leaf">Apply filters</button></div>
+          <p className="text-sm text-inkSoft sm:col-span-2 lg:col-span-4">Applicants are sorted from highest to lowest qualification match. Status changes email applicants automatically.</p>
         </form>
 
         <div className="space-y-4">
+          {!applications.length ? <p className="rounded-xl bg-cream p-5 text-sm text-inkSoft">No applicants match these filters yet.</p> : null}
           {applications.map((application) => (
             <article key={application.id} className="rounded-2xl border border-forest/10 bg-cream p-4">
               <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
@@ -56,9 +76,12 @@ export default async function EmployerDashboardPage({ searchParams }: { searchPa
                   <p className="mt-1 text-sm text-inkSoft">
                     Selected opportunity: {application.opportunityTitle ?? application.opportunityId}
                   </p>
+                  <p className="mt-1 text-sm text-inkSoft">Category: {application.opportunityCategory}</p>
                   <p className="mt-2 text-sm text-inkSoft">
-                    Document: {application.qualificationDocumentName ?? "Not available"}
+                    Qualification document: {application.qualificationDocumentName ?? "Not provided"}
                   </p>
+                  <p className="mt-1 text-sm text-inkSoft">Qualifications: {application.applicantQualifications?.length ? application.applicantQualifications.join(", ") : application.extractedQualifications.join(", ") || "Not provided"}</p>
+                  <p className="mt-1 text-sm text-inkSoft">Verification: {application.verifiedAt ? "Verified" : "Not verified"}</p>
                   <p className="mt-1 text-sm text-inkSoft">
                     Matched skills: {application.matchedSkills.length ? application.matchedSkills.join(", ") : "No required skills found"}
                   </p>
@@ -81,8 +104,18 @@ export default async function EmployerDashboardPage({ searchParams }: { searchPa
         <div className="mt-5 space-y-3">
           {opportunities.map((opportunity) => (
             <div key={opportunity.id} className="flex flex-wrap items-center justify-between gap-3 rounded-2xl bg-cream p-4">
-              <div><p className="font-medium text-ink">{opportunity.title}</p><p className="text-sm text-inkSoft">{opportunity.category} · {opportunity.status}</p></div>
-              <EmployerOpportunityControls opportunityId={opportunity.id} status={opportunity.status} />
+              <div><p className="font-medium text-ink">{opportunity.title}</p><p className="text-sm text-inkSoft">{opportunity.category} · {opportunity.status} · {opportunity.location ?? "Remote / flexible"}</p></div>
+              <EmployerOpportunityControls
+                opportunityId={opportunity.id}
+                status={opportunity.status}
+                title={opportunity.title}
+                description={opportunity.description}
+                category={opportunity.category}
+                applicationEmail={opportunity.applicationEmail}
+                location={opportunity.location}
+                requiredSkills={opportunity.requiredSkills}
+                expiresAt={opportunity.expiresAt?.toISOString().slice(0, 10) ?? ""}
+              />
             </div>
           ))}
         </div>
