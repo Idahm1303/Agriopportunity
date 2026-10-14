@@ -10,6 +10,7 @@ import { createApplication, createDocument, getEmployerApplications, getUserAppl
 import { prisma } from "@/lib/prisma";
 import { extractQualification } from "@/lib/qualification-ocr";
 import { uploadDocument } from "@/lib/object-storage";
+import type { Role } from "@/lib/mock-data";
 
 const applicationSchema = z.object({
   opportunityId: z.string().min(1, "Opportunity ID is required."),
@@ -32,7 +33,7 @@ export async function GET(request: Request) {
   const role = (session.user as { role?: string } | undefined)?.role ?? "LEARNER";
   const userId = (session.user as { userId?: string } | undefined)?.userId;
 
-  if (role === "EMPLOYER" || role === "ADMIN") {
+  if (role === "EMPLOYER" || role === "PROVIDER" || role === "ADMIN") {
     if (!userId) return NextResponse.json({ error: "User session missing." }, { status: 400 });
     const searchParams = new URL(request.url).searchParams;
     return NextResponse.json({ applications: await getEmployerApplications(userId, role === "ADMIN", {
@@ -56,8 +57,8 @@ export async function POST(request: Request) {
   }
 
   const role = (session.user as { role?: string } | undefined)?.role ?? "LEARNER";
-  if (role !== "LEARNER") {
-    return NextResponse.json({ error: "Only learners can apply." }, { status: 403 });
+  if (!["LEARNER", "FARMER", "SMME", "COOPERATIVE"].includes(role)) {
+    return NextResponse.json({ error: "Choose a learner, farmer, SMME, or co-operative role to apply." }, { status: 403 });
   }
 
   const userId = (session.user as { userId?: string } | undefined)?.userId;
@@ -89,10 +90,12 @@ export async function POST(request: Request) {
 
     const opportunity = await prisma.opportunity.findUnique({
       where: { id: parsed.data.opportunityId },
-      select: { status: true, expiresAt: true },
+      select: { status: true, expiresAt: true, closingDate: true },
     });
     if (!opportunity) return NextResponse.json({ error: "Opportunity not found." }, { status: 404 });
-    if (opportunity.status !== "open" || (opportunity.expiresAt && opportunity.expiresAt <= new Date())) {
+    if (opportunity.status !== "open" ||
+      (opportunity.expiresAt && opportunity.expiresAt <= new Date()) ||
+      (opportunity.closingDate && opportunity.closingDate <= new Date())) {
       return NextResponse.json({ error: "This opportunity is no longer accepting applications." }, { status: 409 });
     }
 
@@ -133,6 +136,7 @@ export async function POST(request: Request) {
     const application = await createApplication({
       userId,
       opportunityId: parsed.data.opportunityId,
+      activeRole: role as Role,
       qualificationDocumentName: qualificationDocument instanceof File && qualificationDocument.size > 0 ? qualificationDocument.name : null,
       coverNote: parsed.data.coverNote,
       cvUrl: cvStorageKey,

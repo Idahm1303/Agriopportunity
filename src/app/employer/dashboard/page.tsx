@@ -1,11 +1,14 @@
 import { EmployerStatusControls } from "@/components/EmployerStatusControls";
 import { EmployerOpportunityForm } from "@/components/EmployerOpportunityForm";
 import { EmployerOpportunityControls } from "@/components/EmployerOpportunityControls";
+import Link from "next/link";
 import { getServerSession } from "next-auth";
 import { redirect } from "next/navigation";
 
 import { authOptions } from "@/lib/auth";
-import { findUserById, getEmployerApplications, getEmployerOpportunities } from "@/lib/database";
+import { findUserById, getEmployerApplications, getEmployerOpportunities, getProfileRecommendations } from "@/lib/database";
+import type { Role } from "@/lib/mock-data";
+import { opportunityTypeLabels, opportunityTypes } from "@/lib/agri-options";
 
 export default async function EmployerDashboardPage({ searchParams }: { searchParams: Promise<{ category?: string | string[]; field?: string | string[]; verification?: string | string[] }> }) {
   const query = await searchParams;
@@ -16,9 +19,9 @@ export default async function EmployerDashboardPage({ searchParams }: { searchPa
   const userId = (session?.user as { userId?: string } | undefined)?.userId;
   const role = (session?.user as { role?: string } | undefined)?.role;
   if (!session) redirect("/login?callbackUrl=/employer/dashboard");
-  if (role !== "EMPLOYER" && role !== "ADMIN") redirect("/dashboard");
+  if (role !== "EMPLOYER" && role !== "PROVIDER" && role !== "ADMIN") redirect("/dashboard");
   const employer = userId ? await findUserById(userId) : undefined;
-  const [applications, opportunities] = userId
+  const [applications, opportunities, recommendations] = userId
     ? await Promise.all([
         getEmployerApplications(userId, role === "ADMIN", {
           category,
@@ -26,17 +29,15 @@ export default async function EmployerDashboardPage({ searchParams }: { searchPa
           verification,
         }),
         getEmployerOpportunities(userId, role === "ADMIN"),
+        getProfileRecommendations(userId, role as Role | undefined),
       ])
-    : [[], []];
+    : [[], [], []];
+  const matchCount = recommendations.filter((opportunity) => opportunity.matchScore > 0).length;
   const availableFields = Array.from(new Set(opportunities.flatMap((opportunity) => opportunity.requiredSkills))).sort((left, right) => left.localeCompare(right));
-  const applicationGroups = [
-    { category: "job", label: "Jobs" },
-    { category: "learnership", label: "Learnerships" },
-    { category: "bursary", label: "Bursaries" },
-    { category: "funding", label: "Funding" },
-  ].map((group) => ({
-    ...group,
-    applications: applications.filter((application) => application.opportunityCategory === group.category),
+  const applicationGroups = opportunityTypes.map((category) => ({
+    category,
+    label: opportunityTypeLabels[category],
+    applications: applications.filter((application) => application.opportunityCategory === category),
   })).filter((group) => group.applications.length > 0);
 
   return (
@@ -45,6 +46,7 @@ export default async function EmployerDashboardPage({ searchParams }: { searchPa
         <p className="text-sm font-semibold uppercase tracking-[0.2em] text-leaf">Employer dashboard</p>
         <h1 className="mt-3 font-display text-4xl text-forest">Welcome, {employer?.fullName ?? "Employer"}</h1>
         <p className="mt-2 text-inkSoft">{employer?.organizationName ?? "Your organisation"}</p>
+        <p className="mt-2 text-sm text-inkSoft">{matchCount} opportunities match your profile. <Link href="/opportunities?matched=true" className="font-medium text-forest underline">Browse matches</Link></p>
         {employer?.phoneNumber ? <p className="mt-1 text-sm text-inkSoft">Contact: {employer.phoneNumber} · Region: {employer.location ?? "Not specified"}</p> : null}
       </div>
 
@@ -57,7 +59,8 @@ export default async function EmployerDashboardPage({ searchParams }: { searchPa
         <form className="mb-6 grid gap-3 rounded-xl bg-cream p-4 sm:grid-cols-2 lg:grid-cols-4" method="get">
           <label htmlFor="category" className="text-sm font-medium text-ink">Opportunity category
           <select id="category" name="category" defaultValue={category} className="mt-1 block w-full rounded-xl border border-inkSoft/20 bg-white px-3 py-2 text-sm text-ink">
-            <option value="all">All categories</option><option value="job">Job</option><option value="learnership">Learnership</option><option value="bursary">Bursary</option><option value="funding">Funding</option>
+            <option value="all">All categories</option>
+            {opportunityTypes.map((type) => <option key={type} value={type}>{opportunityTypeLabels[type]}</option>)}
           </select>
           </label>
           <label htmlFor="field" className="text-sm font-medium text-ink">Field of interest
@@ -121,8 +124,15 @@ export default async function EmployerDashboardPage({ searchParams }: { searchPa
                 title={opportunity.title}
                 description={opportunity.description}
                 category={opportunity.category}
+                type={opportunity.type}
                 applicationEmail={opportunity.applicationEmail}
                 location={opportunity.location}
+                province={opportunity.province}
+                targetAudience={opportunity.targetAudience}
+                closingDate={opportunity.closingDate?.toISOString() ?? null}
+                fundingAmountRange={opportunity.fundingAmountRange}
+                eligibilityCriteria={opportunity.eligibilityCriteria}
+                applyUrl={opportunity.applyUrl}
                 requiredSkills={opportunity.requiredSkills}
                 expiresAt={opportunity.expiresAt?.toISOString().slice(0, 10) ?? ""}
               />

@@ -3,22 +3,102 @@ import { getServerSession } from "next-auth";
 import { redirect } from "next/navigation";
 
 import { authOptions } from "@/lib/auth";
-import { findUserById, getSavedOpportunities, getUserApplications, listOpportunities } from "@/lib/database";
+import { findUserById, getProfileRecommendations, getSavedOpportunities, getUserApplications, getUserProfiles } from "@/lib/database";
 import { ApplicationEmailRetry } from "@/components/ApplicationEmailRetry";
 
 export default async function DashboardPage() {
   const session = await getServerSession(authOptions);
   if (!session) redirect("/login?callbackUrl=%2Fdashboard");
   const role = (session.user as { role?: string } | undefined)?.role;
-  if (role !== "LEARNER") redirect(role === "ADMIN" ? "/admin/dashboard" : "/employer/dashboard");
 
   const userId = (session?.user as { userId?: string } | undefined)?.userId;
   if (!userId) redirect("/login?callbackUrl=%2Fdashboard");
+
+  if (role === "FARMER" || role === "SMME" || role === "COOPERATIVE") {
+    const [user, profiles, applications, matches] = await Promise.all([
+      findUserById(userId),
+      getUserProfiles(userId),
+      getUserApplications(userId),
+      getProfileRecommendations(userId, role),
+    ]);
+    if (!user) redirect("/login?callbackUrl=%2Fdashboard");
+    const isFarmer = role === "FARMER";
+    const profileHref = isFarmer ? "/profile/farmer" : "/profile/smme";
+    const profileName = isFarmer ? profiles.farmer?.farmName ?? user.fullName : profiles.smme?.businessName ?? user.organizationName ?? user.fullName;
+    const matchCount = matches.filter((match) => match.matchScore > 0).length;
+
+    return (
+      <main className="mx-auto max-w-6xl space-y-6 px-4 py-10 sm:px-6 lg:px-8">
+        <div className="flex flex-wrap items-end justify-between gap-4">
+          <div>
+            <p className="text-sm font-semibold uppercase tracking-[0.18em] text-leaf">{role === "FARMER" ? "Farmer dashboard" : "SMME dashboard"}</p>
+            <h1 className="mt-2 font-display text-4xl text-forest">Welcome, {profileName}</h1>
+            <p className="mt-2 text-inkSoft">{matchCount} opportunities match your profile.</p>
+          </div>
+          <div className="flex flex-wrap gap-3">
+            <Link href={profileHref} className="rounded-xl border border-forest/20 px-4 py-3 text-sm font-semibold text-forest">Update your profile</Link>
+            {!isFarmer ? <Link href="/profile/smme#diagnostic-title" className="rounded-xl bg-forest px-4 py-3 text-sm font-semibold text-white">Take readiness check</Link> : null}
+            <Link href="/opportunities?matched=true" className="rounded-xl bg-gold px-4 py-3 text-sm font-semibold text-forest">Browse matches</Link>
+          </div>
+        </div>
+
+        {profiles.diagnostic && !isFarmer ? (
+          <section className="rounded-2xl bg-white p-5 ring-1 ring-forest/10">
+            <h2 className="font-display text-xl text-forest">Business readiness</h2>
+            <p className="mt-2 text-inkSoft">Latest score: <strong className="text-forest">{profiles.diagnostic.score} / 100</strong></p>
+          </section>
+        ) : null}
+
+        <section className="grid gap-6 lg:grid-cols-[0.8fr_1.2fr]">
+          <div className="space-y-6">
+            <section className="rounded-2xl bg-white p-5 ring-1 ring-forest/10">
+              <h2 className="font-display text-xl text-forest">Your profile</h2>
+              <dl className="mt-4 space-y-3 text-sm text-inkSoft">
+                <div><dt className="font-medium text-ink">Province</dt><dd>{isFarmer ? profiles.farmer?.province : profiles.smme?.province ?? user.province ?? "Not set"}</dd></div>
+                <div><dt className="font-medium text-ink">{isFarmer ? "Farm focus" : "Business focus"}</dt><dd>{isFarmer ? [profiles.farmer?.farmingType, ...(profiles.farmer?.mainCommodities ?? [])].filter(Boolean).join(", ") || "Add your farm details" : profiles.smme?.sectorFocus ?? "Add your business details"}</dd></div>
+                <div><dt className="font-medium text-ink">Support needed</dt><dd>{(isFarmer ? profiles.farmer?.needs : profiles.smme?.needs)?.join(", ") || "Add your support needs"}</dd></div>
+              </dl>
+            </section>
+            <section className="rounded-2xl bg-white p-5 ring-1 ring-forest/10">
+              <h2 className="font-display text-xl text-forest">Your applications ({applications.length})</h2>
+              <div className="mt-3 space-y-3">
+                {applications.length ? applications.map((application) => (
+                  <article key={application.id} className="rounded-xl bg-cream p-3">
+                    <p className="font-medium text-ink">{application.opportunityTitle ?? "Opportunity"}</p>
+                    <p className="text-sm capitalize text-inkSoft">{application.status.replaceAll("_", " ")}</p>
+                    <Link href={`/opportunities/${application.opportunityId}`} className="text-sm font-medium text-forest underline">View application</Link>
+                  </article>
+                )) : <p className="text-sm text-inkSoft">Your applications and updates will appear here.</p>}
+              </div>
+            </section>
+          </div>
+
+          <section className="rounded-2xl bg-white p-5 ring-1 ring-forest/10">
+            <h2 className="font-display text-2xl text-forest">Recommended opportunities</h2>
+            <div className="mt-4 space-y-3">
+              {matches.filter((match) => match.matchScore > 0).slice(0, 7).map((match) => (
+                <article key={match.id} className="rounded-xl bg-cream p-4">
+                  <div className="flex flex-wrap items-start justify-between gap-2">
+                    <Link href={`/opportunities/${match.id}`} className="font-semibold text-forest underline">{match.title}</Link>
+                    <span className="rounded-full bg-forest px-2 py-1 text-xs font-semibold text-white">{match.matchScore}% match</span>
+                  </div>
+                  <p className="mt-1 text-sm text-inkSoft">{match.matchReason}</p>
+                </article>
+              ))}
+              {!matchCount ? <p className="text-sm text-inkSoft">Complete your profile to receive more relevant matches.</p> : null}
+            </div>
+          </section>
+        </section>
+      </main>
+    );
+  }
+  if (role !== "LEARNER") redirect(role === "ADMIN" ? "/admin/dashboard" : "/employer/dashboard");
+
   const [learner, applications, savedOpportunities, opportunities] = await Promise.all([
     findUserById(userId),
     getUserApplications(userId),
     getSavedOpportunities(userId),
-    listOpportunities(),
+    getProfileRecommendations(userId, "LEARNER"),
   ]);
   if (!learner) redirect("/login?callbackUrl=%2Fdashboard");
 
@@ -73,7 +153,7 @@ export default async function DashboardPage() {
         <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
           <div>
             <h2 className="font-display text-xl text-forest">Explore opportunities</h2>
-            <p className="mt-1 text-sm text-inkSoft">{opportunities.length} currently open across all categories</p>
+            <p className="mt-1 text-sm text-inkSoft">{opportunities.filter((opportunity) => (opportunity.matchScore ?? 0) > 0).length} opportunities match your profile.</p>
           </div>
           <Link href="/opportunities?matched=true" className="text-sm font-semibold text-forest underline-offset-4 hover:underline">See your best matches</Link>
         </div>

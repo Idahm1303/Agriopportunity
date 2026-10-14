@@ -3,7 +3,7 @@ import Image from "next/image";
 import { connection } from "next/server";
 
 import { Hero } from "@/components/Hero";
-import { countLearners } from "@/lib/database";
+import { countFundingPartners, countLearners, countOpenOpportunities } from "@/lib/database";
 
 const featureCards = [
   {
@@ -22,31 +22,14 @@ const featureCards = [
 
 export default async function Home() {
   await connection();
-  const learnerCount = await countLearners();
+  const [learnerCount, openOpportunityCount, fundingPartnerCount] = await Promise.all([
+    countLearners(),
+    countOpenOpportunities(),
+    countFundingPartners(),
+  ]);
 
   return (
     <main className="min-h-screen bg-agri-mint text-ink">
-      <header className="border-b border-white/15 bg-forest text-white">
-        <div className="mx-auto flex max-w-6xl flex-col items-center gap-4 px-4 py-5 sm:flex-row sm:justify-between sm:px-6 lg:px-8">
-          <div>
-            <p className="font-display text-2xl tracking-tight">AgriOpportunity</p>
-          </div>
-          <nav className="flex w-full flex-wrap items-center justify-center gap-2 text-sm font-medium sm:w-auto sm:gap-4">
-            <Link href="/dashboard" className="inline-flex items-center rounded-full border border-goldSoft/70 px-3 py-2 text-white/90 transition hover:bg-leaf hover:text-white">Dashboard</Link>
-            <Link href="/register" className="inline-flex items-center gap-2 rounded-full bg-gold px-4 py-2 text-forest transition hover:bg-goldSoft">
-              <svg aria-hidden="true" viewBox="0 0 24 24" className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
-                <path d="M3 9.25 12 5l9 4.25-9 4.25L3 9.25Z" />
-                <path d="M7 11.5v3.25c0 1.38 2.24 3.25 5 3.25s5-1.87 5-3.25V11.5" />
-                <path d="M21 9.25v6.5" />
-              </svg>
-              Create account learner
-            </Link>
-            <Link href="/register?role=EMPLOYER" className="inline-flex items-center rounded-full border border-goldSoft/70 px-3 py-2 text-white/90 transition hover:bg-leaf hover:text-white">Employer</Link>
-            <Link href="/opportunities?category=funding" className="inline-flex items-center rounded-full border border-goldSoft/70 px-3 py-2 text-white/90 transition hover:bg-leaf hover:text-white">Funding</Link>
-          </nav>
-        </div>
-      </header>
-
       <Hero />
 
       <section className="bg-cream">
@@ -85,9 +68,9 @@ export default async function Home() {
           </div>
           <div className="mt-10 grid gap-4 sm:grid-cols-3">
             {[
-              { label: "Open positions", value: "148" },
+              { label: "Open opportunities", value: openOpportunityCount.toLocaleString() },
               { label: "Learners", value: learnerCount.toLocaleString() },
-              { label: "Funding partners", value: "19" },
+              { label: "Funding partners", value: fundingPartnerCount.toLocaleString() },
             ].map((stat) => (
               <div key={stat.label} className="rounded-2xl bg-white/70 px-5 py-4 ring-1 ring-leaf/15">
                 <p className="text-sm font-medium text-inkSoft">{stat.label}</p>

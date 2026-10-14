@@ -1,0 +1,237 @@
+openapi: 3.1.0
+info:
+  title: AgriOpportunity API
+  version: 1.0.0
+  description: REST API for agricultural opportunities, profiles, matches and applications.
+servers:
+  - url: https://agriopportunity.vercel.app/api/v1
+security:
+  - sessionCookie: []
+paths:
+  /register:
+    post:
+      security: []
+      summary: Register a learner, farmer, SMME, co-operative, employer or provider
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [email, password, fullName]
+              properties:
+                email: { type: string, format: email }
+                password: { type: string, minLength: 8 }
+                fullName: { type: string }
+                role: { type: string, enum: [LEARNER, FARMER, SMME, COOPERATIVE, EMPLOYER, PROVIDER] }
+                province: { type: string }
+                townDistrict: { type: string }
+                preferredLanguage: { type: string }
+                organizationName: { type: string }
+                phoneNumber: { type: string }
+      responses:
+        "201": { description: Account created; response includes shared user ID }
+        "400": { description: Invalid registration details }
+        "409": { description: Email already registered }
+  /profile/roles:
+    post:
+      summary: Add a role to the signed-in user's identity
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [role]
+              properties:
+                role: { type: string, enum: [LEARNER, FARMER, SMME, COOPERATIVE, EMPLOYER, PROVIDER] }
+      responses:
+        "200": { description: Granted roles for the shared user ID }
+        "401": { description: Authentication required }
+    patch:
+      summary: Persist the user's active role
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [role]
+              properties:
+                role: { type: string, enum: [LEARNER, FARMER, SMME, COOPERATIVE, EMPLOYER, PROVIDER, ADMIN] }
+      responses:
+        "200": { description: Active role changed }
+        "403": { description: Requested role is not granted }
+  /profiles/farmer:
+    get:
+      summary: Get the current user's farmer profile
+      responses:
+        "200": { description: Farmer profile }
+        "403": { description: Farmer role required }
+    put:
+      summary: Create or update the current user's farmer profile
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [province]
+              properties:
+                farmName: { type: string }
+                province: { type: string }
+                district: { type: string }
+                farmSizeHectares: { type: number, minimum: 0 }
+                farmingType: { type: string, enum: [crop, livestock, mixed, agro-processing] }
+                mainCommodities: { type: array, items: { type: string } }
+                yearsFarming: { type: integer, minimum: 0 }
+                farmerStage: { type: string, enum: [subsistence, emerging, commercial] }
+                landTenure: { type: string }
+                hasRegisteredBusiness: { type: boolean }
+                needs: { type: array, items: { type: string } }
+      responses:
+        "200": { description: Saved farmer profile }
+        "400": { description: Invalid profile }
+  /profiles/smme:
+    get:
+      summary: Get the current user's SMME profile and latest readiness check
+      responses:
+        "200": { description: SMME profile and diagnostic }
+        "403": { description: SMME or co-operative role required }
+    put:
+      summary: Create or update the current user's SMME profile
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [province]
+              properties:
+                businessName: { type: string }
+                entityType: { type: string }
+                registrationNumber: { type: string }
+                cipcRegistered: { type: boolean }
+                sectorFocus: { type: string }
+                employeesCount: { type: integer, minimum: 0 }
+                yearsTrading: { type: integer, minimum: 0 }
+                annualTurnoverBand: { type: string }
+                province: { type: string }
+                fundingStage: { type: string }
+                needs: { type: array, items: { type: string } }
+      responses:
+        "200": { description: Saved SMME profile }
+        "400": { description: Invalid profile }
+  /smme-diagnostics:
+    post:
+      summary: Score the eight-question business readiness check
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [answers]
+              properties:
+                answers:
+                  type: object
+                  additionalProperties: { type: integer, minimum: 0, maximum: 3 }
+      responses:
+        "201": { description: Stored readiness score and ranked gaps }
+        "400": { description: Missing or invalid answers }
+  /opportunities:
+    get:
+      security: []
+      summary: List open opportunities
+      parameters:
+        - in: query
+          name: type
+          schema: { type: string }
+        - in: query
+          name: audience
+          schema: { type: string, enum: [learner, farmer, smme, cooperative, graduate] }
+        - in: query
+          name: province
+          schema: { type: string }
+      responses:
+        "200": { description: Open opportunities and optional filters }
+    post:
+      summary: Create an opportunity as an employer, provider or admin
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [title, description, type, applicationEmail, requiredSkills]
+              properties:
+                title: { type: string }
+                description: { type: string }
+                type:
+                  type: string
+                  enum: [job, learnership, bursary, funding, internship, graduate_placement, skills_programme, artisan, mentorship, research, smme_programme, funding_call]
+                applicationEmail: { type: string, format: email }
+                location: { type: string }
+                province: { type: string }
+                targetAudience: { type: array, items: { type: string } }
+                closingDate: { type: string, format: date }
+                fundingAmountRange: { type: string }
+                eligibilityCriteria: { type: object }
+                applyUrl: { type: string, format: uri }
+                requiredSkills: { type: array, items: { type: string } }
+      responses:
+        "201": { description: Opportunity created as a draft }
+        "400": { description: Invalid opportunity details }
+        "403": { description: Posting role required }
+  /matches:
+    get:
+      summary: Get stored profile match scores and plain-language reasons
+      responses:
+        "200": { description: Ranked opportunities with matchScore and matchReason }
+        "401": { description: Authentication required }
+  /applications:
+    get:
+      summary: Get the current user's applications or review applicants as a provider
+      responses:
+        "200": { description: Application records and status history }
+    post:
+      summary: Submit an application as a learner, farmer, SMME or co-operative
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              required: [opportunityId, coverNote, cv]
+              properties:
+                opportunityId: { type: string }
+                coverNote: { type: string }
+                cv: { type: string, format: binary }
+                qualificationDocument: { type: string, format: binary }
+      responses:
+        "201": { description: Application saved before email delivery }
+        "409": { description: Already applied or opportunity closed }
+  /recommendations/support-programmes:
+    post:
+      summary: Recommend support programmes for diagnostic gaps
+      description: AgriSMME can use a signed-in SMME session, or an AGRISMME_API_TOKEN bearer token with a userId.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [gaps]
+              properties:
+                userId: { type: string, format: uuid }
+                gaps: { type: array, minItems: 1, items: { type: string } }
+      responses:
+        "200": { description: Ranked support opportunities and reasons }
+        "401": { description: Authentication required }
+        "403": { description: SMME role or integration token required }
+components:
+  securitySchemes:
+    sessionCookie:
+      type: apiKey
+      in: cookie
+      name: agriopportunity.session-token

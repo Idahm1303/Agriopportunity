@@ -1,6 +1,19 @@
 import bcrypt from "bcryptjs";
 
-export type Role = "LEARNER" | "EMPLOYER" | "ADMIN";
+export type Role = "LEARNER" | "FARMER" | "SMME" | "COOPERATIVE" | "EMPLOYER" | "PROVIDER" | "ADMIN";
+export type OpportunityType =
+  | "job"
+  | "learnership"
+  | "bursary"
+  | "funding"
+  | "internship"
+  | "graduate_placement"
+  | "skills_programme"
+  | "artisan"
+  | "mentorship"
+  | "research"
+  | "smme_programme"
+  | "funding_call";
 
 export type User = {
   id: string;
@@ -12,6 +25,8 @@ export type User = {
   phoneNumber?: string | null;
   address?: string | null;
   location?: string | null;
+  province?: string | null;
+  preferredLanguage?: string;
   skills: string[];
   qualifications: string[];
   createdAt: string;
@@ -22,6 +37,14 @@ export type Opportunity = {
   title: string;
   description: string;
   category: string;
+  type?: OpportunityType;
+  targetAudience?: string[];
+  province?: string | null;
+  closingDate?: string | null;
+  fundingAmountRange?: string | null;
+  eligibilityCriteria?: unknown;
+  applyUrl?: string | null;
+  matchReason?: string;
   location?: string | null;
   applicationEmail?: string | null;
   organizationName?: string | null;

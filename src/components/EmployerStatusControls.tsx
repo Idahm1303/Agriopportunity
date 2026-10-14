@@ -97,6 +97,8 @@ export function EmployerStatusControls({
         <option value="under_review">Under review</option>
         <option value="shortlisted">Shortlisted</option>
         <option value="interview">Interview</option>
+        <option value="accepted">Accepted</option>
+        <option value="rejected">Rejected</option>
         <option value="successful">Successful</option>
         <option value="unsuccessful">Unsuccessful</option>
       </select>
@@ -112,7 +114,7 @@ export function EmployerStatusControls({
       <button type="button" disabled={isSaving} onClick={() => saveStatus("shortlisted")} className="rounded-lg border border-forest/20 bg-white px-3 py-2 text-sm font-medium text-forest disabled:opacity-50">
         Shortlist
       </button>
-      <button type="button" disabled={isSaving} onClick={() => saveStatus("unsuccessful")} className="rounded-lg border border-red-200 bg-white px-3 py-2 text-sm font-medium text-red-700 disabled:opacity-50">
+      <button type="button" disabled={isSaving} onClick={() => saveStatus("rejected")} className="rounded-lg border border-red-200 bg-white px-3 py-2 text-sm font-medium text-red-700 disabled:opacity-50">
         Reject
       </button>
 

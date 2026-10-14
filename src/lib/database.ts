@@ -2,7 +2,7 @@ import { Prisma } from "@prisma/client";
 
 import { addAuditEntry } from "@/lib/audit";
 import { prisma, withDatabaseRetry } from "@/lib/prisma";
-import type { Application, Opportunity, Role, User } from "@/lib/mock-data";
+import type { Application, Opportunity, OpportunityType, Role, User } from "@/lib/mock-data";
 
 function mapUser(user: Prisma.UserGetPayload<object>): User {
   return {
@@ -15,6 +15,8 @@ function mapUser(user: Prisma.UserGetPayload<object>): User {
     phoneNumber: user.phoneNumber,
     address: user.address,
     location: user.location,
+    province: user.province,
+    preferredLanguage: user.preferredLanguage,
     skills: user.skills,
     qualifications: user.qualifications,
     createdAt: user.createdAt.toISOString(),
@@ -27,6 +29,13 @@ function mapOpportunity(opportunity: Prisma.OpportunityGetPayload<object>): Oppo
     title: opportunity.title,
     description: opportunity.description,
     category: opportunity.category,
+    type: opportunity.type as OpportunityType,
+    targetAudience: opportunity.targetAudience,
+    province: opportunity.province,
+    closingDate: opportunity.closingDate?.toISOString() ?? null,
+    fundingAmountRange: opportunity.fundingAmountRange,
+    eligibilityCriteria: opportunity.eligibilityCriteria,
+    applyUrl: opportunity.applyUrl,
     location: opportunity.location,
     applicationEmail: opportunity.applicationEmail,
     requiredSkills: opportunity.requiredSkills,
@@ -100,8 +109,59 @@ export async function findUserById(id: string) {
   return user ? mapUser(user) : undefined;
 }
 
+export async function getUserRoles(userId: string): Promise<Role[]> {
+  const roles = await prisma.userRole.findMany({ where: { userId }, select: { role: true }, orderBy: { role: "asc" } });
+  if (roles.length) return roles.map(({ role }) => role as Role);
+  const user = await prisma.user.findUnique({ where: { id: userId }, select: { role: true } });
+  return user ? [user.role as Role] : [];
+}
+
+export async function addUserRole(userId: string, role: Role) {
+  return prisma.userRole.upsert({
+    where: { userId_role: { userId, role } },
+    update: {},
+    create: { userId, role },
+  });
+}
+
+export async function setUserActiveRole(userId: string, role: Role) {
+  const assignedRoles = await getUserRoles(userId);
+  if (!assignedRoles.includes(role)) return false;
+  await prisma.user.update({ where: { id: userId }, data: { role } });
+  return true;
+}
+
 export async function countLearners() {
-  return withDatabaseRetry(() => prisma.user.count({ where: { role: "LEARNER" } }));
+  return withDatabaseRetry(() => prisma.userRole.count({ where: { role: "LEARNER" } }));
+}
+
+export async function countOpenOpportunities() {
+  const now = new Date();
+  return withDatabaseRetry(() => prisma.opportunity.count({
+    where: {
+      status: "open",
+      AND: [
+        { OR: [{ expiresAt: null }, { expiresAt: { gt: now } }] },
+        { OR: [{ closingDate: null }, { closingDate: { gt: now } }] },
+      ],
+    },
+  }));
+}
+
+export async function countFundingPartners() {
+  const now = new Date();
+  return withDatabaseRetry(() => prisma.opportunity.findMany({
+    where: {
+      type: { in: ["funding", "funding_call"] },
+      status: "open",
+      AND: [
+        { OR: [{ expiresAt: null }, { expiresAt: { gt: now } }] },
+        { OR: [{ closingDate: null }, { closingDate: { gt: now } }] },
+      ],
+    },
+    distinct: ["postedById"],
+    select: { postedById: true },
+  })).then((partners) => partners.length);
 }
 
 export async function createUser(input: {
@@ -114,22 +174,266 @@ export async function createUser(input: {
   qualifications?: string[];
   organizationName?: string | null;
   phoneNumber?: string | null;
+  province?: string | null;
+  preferredLanguage?: string;
+  farmerProfile?: { province: string };
+  smmeProfile?: { province: string; businessName?: string | null; entityType?: string };
 }) {
   const user = await withDatabaseRetry(() => prisma.user.create({
     data: {
       email: input.email.toLowerCase(),
       passwordHash: input.passwordHash,
       role: input.role,
+      province: input.province ?? null,
+      preferredLanguage: input.preferredLanguage ?? "English",
       fullName: input.fullName,
       organizationName: input.organizationName ?? null,
       phoneNumber: input.phoneNumber || null,
       location: input.location ?? null,
       skills: input.skills ?? [],
       qualifications: input.qualifications ?? [],
+      roles: { create: { role: input.role } },
+      ...(input.farmerProfile ? {
+        farmerProfile: {
+          create: { province: input.farmerProfile.province, mainCommodities: [], needs: [], hasRegisteredBusiness: false },
+        },
+      } : {}),
+      ...(input.smmeProfile ? {
+        smmeProfile: {
+          create: {
+            province: input.smmeProfile.province,
+            businessName: input.smmeProfile.businessName ?? null,
+            entityType: input.smmeProfile.entityType,
+            needs: [],
+            cipcRegistered: false,
+          },
+        },
+      } : {}),
     },
   }));
 
   return mapUser(user);
+}
+
+export async function upsertFarmerProfile(input: {
+  userId: string;
+  farmName?: string | null;
+  province: string;
+  district?: string | null;
+  farmSizeHectares?: number | null;
+  farmingType?: string | null;
+  mainCommodities: string[];
+  yearsFarming?: number | null;
+  farmerStage?: string | null;
+  landTenure?: string | null;
+  hasRegisteredBusiness: boolean;
+  needs: string[];
+}) {
+  const { userId, ...data } = input;
+  return prisma.farmerProfile.upsert({
+    where: { userId },
+    create: { userId, ...data },
+    update: data,
+  });
+}
+
+export async function upsertSmmeProfile(input: {
+  userId: string;
+  businessName?: string | null;
+  entityType?: string | null;
+  registrationNumber?: string | null;
+  cipcRegistered: boolean;
+  sectorFocus?: string | null;
+  employeesCount?: number | null;
+  yearsTrading?: number | null;
+  annualTurnoverBand?: string | null;
+  province: string;
+  fundingStage?: string | null;
+  needs: string[];
+}) {
+  const { userId, ...data } = input;
+  return prisma.smmeProfile.upsert({
+    where: { userId },
+    create: { userId, ...data },
+    update: data,
+  });
+}
+
+export async function getUserProfiles(userId: string) {
+  const [farmer, smme, diagnostic] = await Promise.all([
+    prisma.farmerProfile.findUnique({ where: { userId } }),
+    prisma.smmeProfile.findUnique({ where: { userId } }),
+    prisma.smmeDiagnostic.findFirst({ where: { userId }, orderBy: { createdAt: "desc" } }),
+  ]);
+  return { farmer, smme, diagnostic };
+}
+
+export async function createSmmeDiagnostic(input: {
+  userId: string;
+  answers: Record<string, number>;
+  score: number;
+  gaps: { key: string; label: string; recommendedTypes: string[] }[];
+}) {
+  return prisma.smmeDiagnostic.create({
+    data: { userId: input.userId, answers: input.answers, score: input.score, gaps: input.gaps },
+  });
+}
+
+function profileRecommendation(opportunity: Opportunity, user: User, profile: {
+  province?: string | null;
+  sector?: string | null;
+  stage?: string | null;
+  needs: string[];
+  commodities?: string[];
+  gaps?: string[];
+}) {
+  const audience = opportunity.targetAudience ?? [];
+  const roleAudience: Record<string, string> = {
+    LEARNER: "learner",
+    FARMER: "farmer",
+    SMME: "smme",
+    COOPERATIVE: "cooperative",
+    EMPLOYER: "employer",
+    PROVIDER: "provider",
+    ADMIN: "admin",
+  };
+  const activeAudience = roleAudience[user.role] ?? "learner";
+  const audienceMatches = !audience.length || audience.includes(activeAudience) || (activeAudience === "cooperative" && audience.includes("smme"));
+  const points: string[] = [];
+  let score = 0;
+
+  if (audienceMatches) {
+    score += 20;
+  }
+  const opportunityProvince = opportunity.province ?? opportunity.location;
+  if (profile.province && opportunityProvince && opportunityProvince.toLowerCase().includes(profile.province.toLowerCase())) {
+    score += 20;
+    points.push(`available in ${profile.province}`);
+  } else if (!opportunityProvince) {
+    score += 12;
+  }
+  const focusTerms = [profile.sector, ...(profile.commodities ?? [])].filter((value): value is string => Boolean(value));
+  const opportunityText = `${opportunity.title} ${opportunity.description} ${opportunity.requiredSkills.join(" ")}`.toLowerCase();
+  if (focusTerms.some((term) => opportunityText.includes(term.toLowerCase()))) {
+    score += 20;
+    points.push(`fits your ${profile.sector ?? "farming"} focus`);
+  }
+  if (profile.stage && opportunityText.includes(profile.stage.toLowerCase())) score += 10;
+  const skillMatch = calculateMatch(opportunity.requiredSkills, user.skills).score;
+  if (skillMatch > 0) {
+    score += Math.round(skillMatch * 0.25);
+    points.push("matches your skills");
+  }
+  const needMatches = profile.needs.filter((need) => opportunityText.includes(need.toLowerCase().replaceAll("_", " ")));
+  if (needMatches.length) {
+    score += Math.min(20, needMatches.length * 10);
+    points.push(`supports your need for ${needMatches.join(" and ")}`);
+  }
+  if (profile.gaps?.some((gap) => opportunity.type === gap || opportunity.category === gap)) {
+    score += 10;
+    points.push("addresses a gap from your readiness check");
+  }
+  const criteria = opportunity.eligibilityCriteria;
+  if (criteria && typeof criteria === "object" && !Array.isArray(criteria)) {
+    const eligibility = criteria as Record<string, unknown>;
+    const requiredProvinces = Array.isArray(eligibility.provinces) ? eligibility.provinces.filter((value): value is string => typeof value === "string") : [];
+    if (requiredProvinces.length && profile.province) {
+      if (!requiredProvinces.some((value) => value.toLowerCase() === profile.province?.toLowerCase())) {
+        score = Math.max(0, score - 30);
+      } else {
+        score += 10;
+        points.push("meets the province criteria");
+      }
+    }
+    const requiredStages = Array.isArray(eligibility.stages) ? eligibility.stages.filter((value): value is string => typeof value === "string") : [];
+    if (requiredStages.length && profile.stage) {
+      if (requiredStages.some((value) => value.toLowerCase() === profile.stage?.toLowerCase())) score += 10;
+      else score = Math.max(0, score - 20);
+    }
+  }
+  const reason = !audienceMatches
+    ? "This listing is aimed at a different audience."
+    : points.length
+      ? `Matches your ${points.join(" and ")}.`
+      : "This opportunity is open to your profile.";
+  return { score: audienceMatches ? Math.min(score, 100) : 0, reason };
+}
+
+export async function getProfileRecommendations(userId: string, activeRole?: Role) {
+  const [user, profiles, opportunities] = await Promise.all([
+    prisma.user.findUnique({ where: { id: userId }, select: { id: true, role: true, location: true, province: true, skills: true, qualifications: true } }),
+    getUserProfiles(userId),
+    listOpportunities(),
+  ]);
+  if (!user) return [];
+  const roles = await getUserRoles(userId);
+  const matchRole = activeRole ?? (user.role as Role);
+  const profile = matchRole === "FARMER" && profiles.farmer
+    ? {
+        province: profiles.farmer.province,
+        sector: profiles.farmer.farmingType,
+        stage: profiles.farmer.farmerStage,
+        needs: profiles.farmer.needs,
+        commodities: profiles.farmer.mainCommodities,
+        gaps: [] as string[],
+      }
+    : (matchRole === "SMME" || matchRole === "COOPERATIVE") && profiles.smme
+      ? {
+          province: profiles.smme.province,
+          sector: profiles.smme.sectorFocus,
+          stage: profiles.smme.fundingStage,
+          needs: profiles.smme.needs,
+          gaps: Array.isArray(profiles.diagnostic?.gaps)
+            ? profiles.diagnostic.gaps.flatMap((gap) => typeof gap === "object" && gap !== null && "recommendedTypes" in gap && Array.isArray(gap.recommendedTypes) ? gap.recommendedTypes.filter((type): type is string => typeof type === "string") : [])
+            : [],
+        }
+      : { province: user.province ?? user.location, needs: [], gaps: [] };
+  const userForMatch = { ...user, role: roles.includes(matchRole) ? matchRole : roles[0] ?? user.role } as User;
+  const ranked = opportunities.map((opportunity) => {
+    const result = profileRecommendation(opportunity, userForMatch, profile);
+    return { ...opportunity, matchScore: result.score, matchReason: result.reason };
+  }).sort((left, right) => right.matchScore - left.matchScore);
+
+  if (ranked.length) await prisma.$transaction(ranked.map((opportunity) => prisma.opportunityRecommendation.upsert({
+    where: { userId_opportunityId: { userId, opportunityId: opportunity.id } },
+    create: { userId, opportunityId: opportunity.id, matchScore: opportunity.matchScore ?? 0, matchReason: opportunity.matchReason ?? "" },
+    update: { matchScore: opportunity.matchScore ?? 0, matchReason: opportunity.matchReason ?? "" },
+  })));
+  return ranked;
+}
+
+export async function getSupportProgrammeRecommendations(userId: string, gaps: string[]) {
+  const recommendations = await getProfileRecommendations(userId, "SMME");
+  const recommendedTypes = new Set<string>();
+  for (const gap of gaps) {
+    const normalizedGap = gap.toLowerCase().replaceAll("_", " ");
+    if (/registration|compliance/.test(normalizedGap)) {
+      ["smme_programme", "skills_programme"].forEach((type) => recommendedTypes.add(type));
+    } else if (/financial|funding|budget/.test(normalizedGap)) {
+      ["smme_programme", "funding_call", "funding"].forEach((type) => recommendedTypes.add(type));
+    } else if (/market|customer/.test(normalizedGap)) {
+      ["smme_programme", "mentorship", "research"].forEach((type) => recommendedTypes.add(type));
+    } else if (/skill|training/.test(normalizedGap)) {
+      ["skills_programme", "learnership", "mentorship"].forEach((type) => recommendedTypes.add(type));
+    } else if (/technology|digital/.test(normalizedGap)) {
+      ["skills_programme", "smme_programme"].forEach((type) => recommendedTypes.add(type));
+    } else if (/governance|decision/.test(normalizedGap)) {
+      ["smme_programme", "mentorship"].forEach((type) => recommendedTypes.add(type));
+    }
+  }
+  const ranked = recommendations.filter((opportunity) => recommendedTypes.has(opportunity.type ?? opportunity.category))
+    .map((opportunity) => ({
+      ...opportunity,
+      matchScore: Math.min(100, (opportunity.matchScore ?? 0) + 15),
+      matchReason: `Recommended to help with ${gaps.join(", ").replaceAll("_", " ")}.`,
+    }))
+    .sort((left, right) => right.matchScore - left.matchScore);
+  if (ranked.length) await prisma.$transaction(ranked.map((opportunity) => prisma.opportunityRecommendation.upsert({
+    where: { userId_opportunityId: { userId, opportunityId: opportunity.id } },
+    create: { userId, opportunityId: opportunity.id, matchScore: opportunity.matchScore ?? 0, matchReason: opportunity.matchReason ?? "" },
+    update: { matchScore: opportunity.matchScore ?? 0, matchReason: opportunity.matchReason ?? "" },
+  })));
+  return ranked;
 }
 
 export async function updateUserProfile(input: {
@@ -162,6 +466,8 @@ export async function createDocument(input: {
   fileName: string;
   storageUrl?: string;
   extractedText?: string;
+  extractedData?: Prisma.InputJsonValue;
+  extractionStatus?: string;
   extractedQualifications?: string[];
   extractedSkills?: string[];
   confidence?: number;
@@ -175,10 +481,32 @@ export async function createDocument(input: {
       fileName: input.fileName,
       storageUrl: input.storageUrl,
       extractedText: input.extractedText,
+      extractedData: input.extractedData,
+      extractionStatus: input.extractionStatus ?? "confirmed",
       extractedQualifications: input.extractedQualifications ?? [],
       extractedSkills: input.extractedSkills ?? [],
       confidence: input.confidence,
     },
+  });
+}
+
+export async function getProfileDocuments(userId: string) {
+  return prisma.document.findMany({
+    where: { userId, opportunityId: null, applicationId: null, documentType: { in: ["id_document", "business_registration", "funding_proof", "certificate"] } },
+    select: { id: true, documentType: true, fileName: true, extractedData: true, extractionStatus: true, confidence: true, confirmedAt: true, createdAt: true },
+    orderBy: { createdAt: "desc" },
+  });
+}
+
+export async function confirmProfileDocument(userId: string, documentId: string) {
+  const document = await prisma.document.findFirst({
+    where: { id: documentId, userId, opportunityId: null, applicationId: null },
+    select: { id: true },
+  });
+  if (!document) return null;
+  return prisma.document.update({
+    where: { id: document.id },
+    data: { confirmedAt: new Date(), extractionStatus: "confirmed" },
   });
 }
 
@@ -254,10 +582,19 @@ export async function updateEmployerVerification(input: { employerId: string; st
   return employer;
 }
 
-export async function listOpportunities() {
+export async function listOpportunities(filters?: { type?: OpportunityType; audience?: string; province?: string }) {
   const now = new Date();
   const opportunities = await prisma.opportunity.findMany({
-    where: { status: "open", OR: [{ expiresAt: null }, { expiresAt: { gt: now } }] },
+    where: {
+      status: "open",
+      ...(filters?.type ? { type: filters.type } : {}),
+      ...(filters?.audience ? { targetAudience: { has: filters.audience } } : {}),
+      AND: [
+        { OR: [{ expiresAt: null }, { expiresAt: { gt: now } }] },
+        { OR: [{ closingDate: null }, { closingDate: { gt: now } }] },
+        ...(filters?.province ? [{ OR: [{ province: null }, { province: filters.province }] }] : []),
+      ],
+    },
     include: { postedBy: { select: { email: true, fullName: true, organizationName: true } } },
     orderBy: { createdAt: "desc" },
   });
@@ -316,6 +653,13 @@ export async function createOpportunity(input: {
   title: string;
   description: string;
   category: string;
+  type?: OpportunityType;
+  targetAudience?: string[];
+  province?: string | null;
+  closingDate?: Date | null;
+  fundingAmountRange?: string | null;
+  eligibilityCriteria?: Prisma.InputJsonValue;
+  applyUrl?: string | null;
   applicationEmail: string;
   location?: string | null;
   requiredSkills: string[];
@@ -327,6 +671,13 @@ export async function createOpportunity(input: {
       title: input.title,
       description: input.description,
       category: input.category,
+      type: input.type ?? input.category as OpportunityType,
+      targetAudience: input.targetAudience ?? [],
+      province: input.province ?? null,
+      closingDate: input.closingDate ?? null,
+      fundingAmountRange: input.fundingAmountRange ?? null,
+      eligibilityCriteria: input.eligibilityCriteria ?? Prisma.JsonNull,
+      applyUrl: input.applyUrl ?? null,
       applicationEmail: input.applicationEmail.toLowerCase(),
       location: input.location ?? null,
       requiredSkills: input.requiredSkills,
@@ -411,6 +762,7 @@ export async function getEmployerApplications(
 export async function createApplication(input: {
   userId: string;
   opportunityId: string;
+  activeRole?: Role;
   qualificationDocumentName?: string | null;
   coverNote: string;
   cvUrl: string;
@@ -421,7 +773,9 @@ export async function createApplication(input: {
   const opportunity = await prisma.opportunity.findUnique({ where: { id: input.opportunityId } });
   const user = await prisma.user.findUnique({ where: { id: input.userId } });
   if (!opportunity || !user) return null;
-  if (opportunity.status !== "open" || (opportunity.expiresAt && opportunity.expiresAt <= new Date())) return null;
+  if (opportunity.status !== "open" ||
+    (opportunity.expiresAt && opportunity.expiresAt <= new Date()) ||
+    (opportunity.closingDate && opportunity.closingDate <= new Date())) return null;
 
   const existingApplication = await prisma.application.findFirst({
     where: { userId: input.userId, opportunityId: input.opportunityId },
@@ -430,13 +784,15 @@ export async function createApplication(input: {
 
   const applicationSkills = Array.from(new Set([...user.skills, ...input.extractedSkills]));
   const { matchedSkills, score } = calculateMatch(opportunity.requiredSkills, applicationSkills);
+  const profileMatches = await getProfileRecommendations(input.userId, input.activeRole ?? user.role as Role);
+  const profileMatchScore = profileMatches.find((match) => match.id === opportunity.id)?.matchScore;
   const application = await prisma.application.create({
     data: {
       userId: input.userId,
       opportunityId: input.opportunityId,
       coverNote: input.coverNote,
       cvUrl: input.cvUrl,
-      matchScore: score,
+      matchScore: profileMatchScore ?? score,
       qualificationDocumentName: input.qualificationDocumentName ?? null,
       extractedText: input.extractedText,
       extractedQualifications: input.extractedQualifications,
@@ -459,14 +815,9 @@ export async function updateApplicationStatus(appId: string, status: string) {
   }
 }
 
-export async function getMatchScoreForOpportunity(userId: string, opportunityId: string) {
-  const [user, opportunity] = await Promise.all([
-    prisma.user.findUnique({ where: { id: userId } }),
-    prisma.opportunity.findUnique({ where: { id: opportunityId } }),
-  ]);
-  if (!user || !opportunity) return 0;
-
-  return calculateMatch(opportunity.requiredSkills, user.skills).score;
+export async function getMatchScoreForOpportunity(userId: string, opportunityId: string, activeRole?: Role) {
+  const matches = await getProfileRecommendations(userId, activeRole);
+  return matches.find((opportunity) => opportunity.id === opportunityId)?.matchScore ?? 0;
 }
 
 export async function updateEmployerApplication(input: {
@@ -528,6 +879,13 @@ export async function updateOpportunityDetails(input: {
   title: string;
   description: string;
   category: string;
+  type?: OpportunityType;
+  targetAudience?: string[];
+  province?: string | null;
+  closingDate?: Date | null;
+  fundingAmountRange?: string | null;
+  eligibilityCriteria?: Prisma.InputJsonValue;
+  applyUrl?: string | null;
   applicationEmail: string;
   location?: string | null;
   requiredSkills: string[];
@@ -544,6 +902,13 @@ export async function updateOpportunityDetails(input: {
       title: input.title,
       description: input.description,
       category: input.category,
+      type: input.type ?? input.category as OpportunityType,
+      ...(input.targetAudience !== undefined ? { targetAudience: input.targetAudience } : {}),
+      ...(input.province !== undefined ? { province: input.province } : {}),
+      ...(input.closingDate !== undefined ? { closingDate: input.closingDate } : {}),
+      ...(input.fundingAmountRange !== undefined ? { fundingAmountRange: input.fundingAmountRange } : {}),
+      ...(input.eligibilityCriteria !== undefined ? { eligibilityCriteria: input.eligibilityCriteria } : {}),
+      ...(input.applyUrl !== undefined ? { applyUrl: input.applyUrl } : {}),
       applicationEmail: input.applicationEmail.toLowerCase(),
       location: input.location ?? null,
       requiredSkills: input.requiredSkills,

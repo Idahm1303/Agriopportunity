@@ -13,6 +13,8 @@ model User {
   email                   String             @unique
   passwordHash            String
   role                    Role               @default(LEARNER)
+  province                String?
+  preferredLanguage       String             @default("English")
   fullName                String
   organizationName        String?
   phoneNumber             String?
@@ -28,12 +30,97 @@ model User {
   documents               Document[]
   reports                 Report[]
   savedOpportunities      SavedOpportunity[]
+  roles                   UserRole[]
+  farmerProfile           FarmerProfile?
+  smmeProfile             SmmeProfile?
+  smmeDiagnostics         SmmeDiagnostic[]
+  recommendations         OpportunityRecommendation[]
 }
 
 enum Role {
   LEARNER
+  FARMER
+  SMME
+  COOPERATIVE
   EMPLOYER
+  PROVIDER
   ADMIN
+}
+
+model UserRole {
+  userId    String
+  role      Role
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  createdAt DateTime @default(now())
+
+  @@id([userId, role])
+  @@map("user_roles")
+}
+
+model FarmerProfile {
+  userId                  String   @id
+  user                    User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  farmName                String?
+  province                String
+  district                String?
+  farmSizeHectares        Float?
+  farmingType             String?
+  mainCommodities         String[] @default([])
+  yearsFarming            Int?
+  farmerStage             String?
+  landTenure              String?
+  hasRegisteredBusiness   Boolean  @default(false)
+  needs                   String[] @default([])
+  updatedAt               DateTime @updatedAt
+
+  @@map("farmer_profiles")
+}
+
+model SmmeProfile {
+  userId              String   @id
+  user                User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  businessName        String?
+  entityType          String?
+  registrationNumber  String?
+  cipcRegistered      Boolean  @default(false)
+  sectorFocus         String?
+  employeesCount      Int?
+  yearsTrading        Int?
+  annualTurnoverBand  String?
+  province            String
+  fundingStage        String?
+  needs               String[] @default([])
+  updatedAt           DateTime @updatedAt
+
+  @@map("smme_profiles")
+}
+
+model SmmeDiagnostic {
+  id        String   @id @default(uuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  answers   Json
+  score     Int
+  gaps      Json
+  createdAt DateTime @default(now())
+
+  @@index([userId, createdAt])
+  @@map("smme_diagnostics")
+}
+
+enum OpportunityType {
+  job
+  learnership
+  bursary
+  funding
+  internship
+  graduate_placement
+  skills_programme
+  artisan
+  mentorship
+  research
+  smme_programme
+  funding_call
 }
 
 model Opportunity {
@@ -41,6 +128,13 @@ model Opportunity {
   title              String
   description        String
   category           String
+  type               OpportunityType   @default(job)
+  targetAudience     String[]          @default([])
+  province           String?
+  closingDate        DateTime?
+  fundingAmountRange String?
+  eligibilityCriteria Json?
+  applyUrl           String?
   location           String?
   applicationEmail   String?
   requiredSkills     String[]
@@ -57,6 +151,21 @@ model Opportunity {
   documents          Document[]
   reports            Report[]
   savedBy            SavedOpportunity[]
+  recommendations    OpportunityRecommendation[]
+}
+
+model OpportunityRecommendation {
+  userId        String
+  opportunityId String
+  matchScore    Int
+  matchReason   String
+  createdAt     DateTime    @default(now())
+  user          User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+  opportunity   Opportunity @relation(fields: [opportunityId], references: [id], onDelete: Cascade)
+
+  @@id([userId, opportunityId])
+  @@index([userId, matchScore])
+  @@map("opportunity_recommendations")
 }
 
 model Application {
@@ -110,6 +219,8 @@ model Document {
   fileName                String
   storageUrl              String?
   extractedText           String?
+  extractedData           Json?
+  extractionStatus         String       @default("pending_confirmation")
   extractedQualifications String[]     @default([])
   extractedSkills         String[]     @default([])
   confidence              Float?

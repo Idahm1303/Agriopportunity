@@ -45,6 +45,7 @@ export async function uploadDocument(input: {
     Key: key,
     Body: Buffer.from(await input.file.arrayBuffer()),
     ContentType: input.file.type || "application/octet-stream",
+    ServerSideEncryption: "AES256",
     Metadata: {
       userId: input.userId,
       documentType: input.documentType,

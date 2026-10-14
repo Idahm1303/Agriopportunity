@@ -22,9 +22,9 @@ export function Hero() {
             Grow your future in agriculture.
           </h1>
           <p className="mt-6 max-w-2xl text-lg leading-8 text-white/90 sm:text-xl">
-            Find work-integrated learning, employment, funding, and enterprise opportunities built for agricultural learners and SMMEs.
+            Find jobs, training, mentors, markets, equipment and funding for learners, farmers and agricultural SMMEs.
           </p>
-          <div className="mt-9 flex flex-col gap-4 sm:flex-row">
+          <div className="mt-9 flex flex-wrap gap-3">
             <Link
               href="/opportunities"
               className="inline-flex min-h-12 items-center justify-center rounded-full bg-gold px-6 py-3 font-semibold text-forest transition hover:bg-goldSoft focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-white/70"
@@ -36,6 +36,15 @@ export function Hero() {
               className="inline-flex min-h-12 items-center justify-center rounded-full border border-white/70 bg-white/10 px-6 py-3 font-semibold text-white transition hover:bg-white/20 focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-goldSoft"
             >
               Create account learner
+            </Link>
+            <Link href="/register?role=FARMER" className="inline-flex min-h-12 items-center justify-center rounded-full border border-white/70 bg-white/10 px-6 py-3 font-semibold text-white transition hover:bg-white/20 focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-goldSoft">
+              Farmer
+            </Link>
+            <Link href="/register?role=SMME" className="inline-flex min-h-12 items-center justify-center rounded-full border border-white/70 bg-white/10 px-6 py-3 font-semibold text-white transition hover:bg-white/20 focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-goldSoft">
+              SMME
+            </Link>
+            <Link href="/register?role=EMPLOYER" className="inline-flex min-h-12 items-center justify-center rounded-full border border-white/70 bg-white/10 px-6 py-3 font-semibold text-white transition hover:bg-white/20 focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-goldSoft">
+              Employer
             </Link>
           </div>
         </div>

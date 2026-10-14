@@ -2,6 +2,7 @@
 
 import { useRouter } from "next/navigation";
 import { useState } from "react";
+import { opportunityTypeLabels, opportunityTypes, provinces } from "@/lib/agri-options";
 
 type OpportunityEditorData = {
   opportunityId: string;
@@ -9,13 +10,20 @@ type OpportunityEditorData = {
   title?: string;
   description?: string;
   category?: string;
+  type?: string;
   applicationEmail?: string;
   location?: string | null;
+  province?: string | null;
+  targetAudience?: string[];
+  closingDate?: string | null;
+  fundingAmountRange?: string | null;
+  eligibilityCriteria?: unknown;
+  applyUrl?: string | null;
   requiredSkills?: string[];
   expiresAt?: string;
 };
 
-export function EmployerOpportunityControls({ opportunityId, status, title, description, category, applicationEmail, location, requiredSkills, expiresAt }: OpportunityEditorData) {
+export function EmployerOpportunityControls({ opportunityId, status, title, description, category, type, applicationEmail, location, province, targetAudience, closingDate, fundingAmountRange, eligibilityCriteria, applyUrl, requiredSkills, expiresAt }: OpportunityEditorData) {
   const router = useRouter();
   const [message, setMessage] = useState<string | null>(null);
   const [isEditing, setIsEditing] = useState(false);
@@ -55,11 +63,17 @@ export function EmployerOpportunityControls({ opportunityId, status, title, desc
         body: JSON.stringify({
           title: form.get("title"),
           description: form.get("description"),
-          category: form.get("category"),
+          category: form.get("type"),
+          type: form.get("type"),
           applicationEmail: form.get("applicationEmail"),
           location: form.get("location"),
+          province: form.get("province") || null,
+          targetAudience: form.getAll("targetAudience"),
+          closingDate: form.get("closingDate") || null,
+          fundingAmountRange: form.get("fundingAmountRange") || null,
+          eligibilityCriteria: form.get("eligibilityCriteria") ? { description: form.get("eligibilityCriteria") } : undefined,
+          applyUrl: form.get("applyUrl") || null,
           requiredSkills: String(form.get("requiredSkills") ?? "").split(",").map((skill) => skill.trim()).filter(Boolean),
-          expiresAt: form.get("expiresAt") || null,
         }),
       });
       const payload = await response.json();
@@ -104,12 +118,22 @@ export function EmployerOpportunityControls({ opportunityId, status, title, desc
       {isEditing ? (
         <form onSubmit={saveDetails} className="mt-3 grid w-full gap-3 rounded-xl border border-forest/10 bg-white p-4 sm:grid-cols-2">
           <label className="text-sm font-medium text-ink">Title<input name="title" defaultValue={title ?? ""} required minLength={3} maxLength={160} className="mt-1 w-full rounded-lg border border-inkSoft/20 px-3 py-2" /></label>
-          <label className="text-sm font-medium text-ink">Category<select name="category" defaultValue={category ?? "job"} className="mt-1 w-full rounded-lg border border-inkSoft/20 px-3 py-2"><option value="job">Job</option><option value="learnership">Learnership</option><option value="bursary">Bursary</option><option value="funding">Funding</option></select></label>
+          <label className="text-sm font-medium text-ink">Opportunity type<select name="type" defaultValue={type ?? category ?? "job"} className="mt-1 w-full rounded-lg border border-inkSoft/20 px-3 py-2">{opportunityTypes.map((item) => <option key={item} value={item}>{opportunityTypeLabels[item]}</option>)}</select></label>
           <label className="text-sm font-medium text-ink sm:col-span-2">Description<textarea name="description" defaultValue={description ?? ""} required minLength={20} maxLength={10000} rows={4} className="mt-1 w-full rounded-lg border border-inkSoft/20 px-3 py-2" /></label>
           <label className="text-sm font-medium text-ink">Application email<input name="applicationEmail" type="email" defaultValue={applicationEmail ?? ""} required className="mt-1 w-full rounded-lg border border-inkSoft/20 px-3 py-2" /></label>
-          <label className="text-sm font-medium text-ink">Location<input name="location" defaultValue={location ?? ""} maxLength={160} className="mt-1 w-full rounded-lg border border-inkSoft/20 px-3 py-2" /></label>
+          <label className="text-sm font-medium text-ink">Town or district<input name="location" defaultValue={location ?? ""} maxLength={160} className="mt-1 w-full rounded-lg border border-inkSoft/20 px-3 py-2" /></label>
+          <label className="text-sm font-medium text-ink">Province<select name="province" defaultValue={province ?? ""} className="mt-1 w-full rounded-lg border border-inkSoft/20 px-3 py-2"><option value="">National / all provinces</option>{provinces.map((item) => <option key={item} value={item}>{item}</option>)}</select></label>
           <label className="text-sm font-medium text-ink">Required skills, comma separated<input name="requiredSkills" defaultValue={(requiredSkills ?? []).join(", ")} required className="mt-1 w-full rounded-lg border border-inkSoft/20 px-3 py-2" /></label>
-          <label className="text-sm font-medium text-ink">Closing date<input name="expiresAt" type="date" defaultValue={expiresAt ?? ""} className="mt-1 w-full rounded-lg border border-inkSoft/20 px-3 py-2" /></label>
+          <label className="text-sm font-medium text-ink">Closing date<input name="closingDate" type="date" defaultValue={closingDate?.slice(0, 10) ?? expiresAt ?? ""} className="mt-1 w-full rounded-lg border border-inkSoft/20 px-3 py-2" /></label>
+          <label className="text-sm font-medium text-ink">Funding range<input name="fundingAmountRange" defaultValue={fundingAmountRange ?? ""} maxLength={100} className="mt-1 w-full rounded-lg border border-inkSoft/20 px-3 py-2" /></label>
+          <label className="text-sm font-medium text-ink">Eligibility requirements<input name="eligibilityCriteria" defaultValue={eligibilityCriteria && typeof eligibilityCriteria === "object" && "description" in eligibilityCriteria ? String(eligibilityCriteria.description) : ""} className="mt-1 w-full rounded-lg border border-inkSoft/20 px-3 py-2" /></label>
+          <label className="text-sm font-medium text-ink">Application link<input name="applyUrl" type="url" defaultValue={applyUrl ?? ""} className="mt-1 w-full rounded-lg border border-inkSoft/20 px-3 py-2" /></label>
+          <fieldset className="sm:col-span-2">
+            <legend className="text-sm font-medium text-ink">Who is this for?</legend>
+            <div className="mt-2 flex flex-wrap gap-3 text-sm">
+              {["learner", "farmer", "smme", "cooperative", "graduate"].map((audience) => <label key={audience} className="flex items-center gap-2"><input type="checkbox" name="targetAudience" value={audience} defaultChecked={targetAudience?.includes(audience)} className="accent-forest" />{audience === "smme" ? "SMME" : audience[0].toUpperCase() + audience.slice(1)}</label>)}
+            </div>
+          </fieldset>
           <button type="submit" disabled={isSaving} className="rounded-lg bg-forest px-4 py-2 text-sm font-semibold text-white disabled:opacity-60 sm:col-span-2">{isSaving ? "Saving..." : "Save listing changes"}</button>
         </form>
       ) : null}

@@ -10,7 +10,9 @@ The User model stores the account and profile information for each participant.
 
 - email: unique login identifier
 - passwordHash: bcrypt-hashed password
-- role: one of LEARNER, EMPLOYER, or ADMIN
+- role: current active/legacy role
+- roles: grants in `user_roles`, allowing multiple roles for one account and shared user ID
+- province and preferredLanguage: regional and language preferences
 - fullName: display name
 - location: optional user area
 - skills: string array for profile tags
@@ -23,11 +25,13 @@ The User model stores the account and profile information for each participant.
 
 ### Opportunity
 
-The Opportunity model represents jobs, learnerships, bursaries, or funding calls.
+The Opportunity model represents the marketplace's employment, training, mentorship, research, SMME support and funding listings.
 
 - title: clear public title
 - description: detailed overview
-- category: one of the four supported opportunity types
+- category: legacy string retained for client compatibility
+- type: typed opportunity value, including jobs, learnerships, internships, graduate placements, skills programmes, artisan opportunities, mentorship, research, SMME programmes, bursaries and funding calls
+- targetAudience, province, closingDate, fundingAmountRange, eligibilityCriteria, applyUrl: audience and application information for discovery and matching
 - applicationEmail: employer/provider address for receiving applications
 - location: where the opportunity sits
 - requiredSkills: simple match tags used for skill-overlap score
@@ -70,6 +74,7 @@ Document stores metadata and extracted OCR values without assuming a particular 
 - extractedText, extractedQualifications, extractedSkills: OCR result
 - confidence: value from 0 to 1; low-confidence results require applicant confirmation
 - confirmedAt: timestamp when the applicant confirms extracted values
+- extractedData and extractionStatus: structured OCR suggestions and explicit pending/confirmed review state for farmer/SMME uploads
 
 ### Report
 
@@ -91,3 +96,10 @@ SavedOpportunity is the applicant-to-opportunity shortlist join table.
 ### AuditLog
 
 The AuditLog table records key actions such as application submission or status changes to support traceability and future reporting.
+
+## Farmer, SMME and recommendations
+
+- `farmer_profiles` stores farm name, province/district, area, farming type, commodities, years farming, stage, tenure, business registration and support needs.
+- `smme_profiles` stores business/entity details, CIPC status, sector, staff count, years trading, turnover band, province, funding stage and support needs.
+- `smme_diagnostics` stores each eight-question answer set, a server-calculated score from 0 to 100, and ranked growth gaps.
+- `opportunity_recommendations` stores a per-user, per-opportunity match score and plain-language reason. Scores are refreshed when matches are requested.

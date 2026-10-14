@@ -5,12 +5,20 @@ import { z } from "zod";
 import { authOptions } from "@/lib/auth";
 import { getOpportunityById, updateOpportunityDetails, updateOpportunityStatus } from "@/lib/database";
 import { addAuditEntry } from "@/lib/audit";
+import { opportunityTypes } from "@/lib/agri-options";
 
 const statusSchema = z.object({ status: z.enum(["open", "closed"]) });
 const opportunityDetailsSchema = z.object({
   title: z.string().trim().min(3).max(160),
   description: z.string().trim().min(20).max(10000),
-  category: z.enum(["job", "learnership", "bursary", "funding"]),
+  category: z.enum(opportunityTypes as [typeof opportunityTypes[number], ...typeof opportunityTypes[number][]]),
+  type: z.enum(opportunityTypes as [typeof opportunityTypes[number], ...typeof opportunityTypes[number][]]).optional(),
+  targetAudience: z.array(z.enum(["learner", "farmer", "smme", "cooperative", "graduate"])).optional(),
+  province: z.string().max(80).nullable().optional(),
+  closingDate: z.string().date().nullable().optional(),
+  fundingAmountRange: z.string().max(100).nullable().optional(),
+  eligibilityCriteria: z.record(z.string(), z.unknown()).nullable().optional(),
+  applyUrl: z.url().nullable().optional(),
   applicationEmail: z.email(),
   location: z.string().trim().max(160).optional(),
   requiredSkills: z.array(z.string().trim().min(2).max(80)).min(1).max(30),
@@ -29,9 +37,18 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
   const role = (session?.user as { role?: string } | undefined)?.role;
   const employerId = (session?.user as { userId?: string } | undefined)?.userId;
   if (!session || !employerId) return NextResponse.json({ error: "Authentication required." }, { status: 401 });
-  if (role !== "EMPLOYER" && role !== "ADMIN") return NextResponse.json({ error: "Employer access required." }, { status: 403 });
+  if (role !== "EMPLOYER" && role !== "PROVIDER" && role !== "ADMIN") return NextResponse.json({ error: "Employer or provider access required." }, { status: 403 });
 
-  const body = await request.json();
+  let body: Record<string, unknown>;
+  try {
+    const parsedBody: unknown = await request.json();
+    if (typeof parsedBody !== "object" || parsedBody === null || Array.isArray(parsedBody)) {
+      return NextResponse.json({ error: "Provide valid opportunity details." }, { status: 400 });
+    }
+    body = parsedBody as Record<string, unknown>;
+  } catch {
+    return NextResponse.json({ error: "Provide valid opportunity details." }, { status: 400 });
+  }
   const { id } = await params;
   const opportunity = "status" in body
     ? (() => {
@@ -48,7 +65,17 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
               employerId,
               isAdmin: role === "ADMIN",
               ...parsed.data,
+              type: parsed.data.type ?? parsed.data.category,
+              category: parsed.data.type ?? parsed.data.category,
               applicationEmail: parsed.data.applicationEmail.toLowerCase(),
+              closingDate: parsed.data.closingDate === undefined
+                ? undefined
+                : parsed.data.closingDate
+                  ? new Date(`${parsed.data.closingDate}T23:59:59.999Z`)
+                  : null,
+              eligibilityCriteria: parsed.data.eligibilityCriteria === null
+                ? undefined
+                : parsed.data.eligibilityCriteria as import("@prisma/client").Prisma.InputJsonValue | undefined,
               expiresAt: parsed.data.expiresAt === undefined
                 ? undefined
                 : parsed.data.expiresAt

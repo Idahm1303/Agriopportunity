@@ -2,6 +2,8 @@ import type { Metadata } from "next";
 import { Fraunces, Inter } from "next/font/google";
 
 import "./globals.css";
+import { SessionProviders } from "@/components/SessionProviders";
+import { SiteHeader } from "@/components/SiteHeader";
 
 const fraunces = Fraunces({
   variable: "--font-fraunces",
@@ -21,7 +23,12 @@ export const metadata: Metadata = {
 export default function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {
   return (
     <html lang="en" className={`${fraunces.variable} ${inter.variable} h-full antialiased`}>
-      <body className="min-h-full bg-cream text-ink">{children}</body>
+      <body className="min-h-full bg-cream text-ink">
+        <SessionProviders>
+          <SiteHeader />
+          {children}
+        </SessionProviders>
+      </body>
     </html>
   );
 }

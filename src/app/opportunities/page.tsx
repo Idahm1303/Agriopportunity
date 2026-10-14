@@ -2,20 +2,24 @@ import { OpportunitiesBrowser } from "@/components/OpportunitiesBrowser";
 import { getServerSession } from "next-auth";
 
 import { authOptions } from "@/lib/auth";
-import { findUserById, listOpportunities } from "@/lib/database";
+import { findUserById, getProfileRecommendations, listOpportunities } from "@/lib/database";
+import type { Role } from "@/lib/mock-data";
 
 export default async function OpportunitiesPage({
   searchParams,
 }: {
-  searchParams: Promise<{ category?: string | string[]; matched?: string | string[] }>;
+  searchParams: Promise<{ category?: string | string[]; matched?: string | string[]; audience?: string | string[]; province?: string | string[] }>;
 }) {
   const query = await searchParams;
   const category = Array.isArray(query.category) ? query.category[0] : query.category;
   const matched = Array.isArray(query.matched) ? query.matched[0] : query.matched;
+  const audience = Array.isArray(query.audience) ? query.audience[0] : query.audience;
+  const province = Array.isArray(query.province) ? query.province[0] : query.province;
   const session = await getServerSession(authOptions);
-  const userId = (session?.user as { userId?: string } | undefined)?.userId;
+  const sessionUser = session?.user as { userId?: string; role?: string } | undefined;
+  const userId = sessionUser?.userId;
   const [opportunities, learner] = await Promise.all([
-    listOpportunities(),
+    userId ? getProfileRecommendations(userId, sessionUser?.role as Role | undefined) : listOpportunities(),
     userId ? findUserById(userId) : Promise.resolve(undefined),
   ]);
 
@@ -24,7 +28,8 @@ export default async function OpportunitiesPage({
       <div className="mb-8 flex items-end justify-between gap-6">
         <div>
           <p className="text-sm font-semibold uppercase tracking-[0.2em] text-leaf">Explore</p>
-          <h1 className="mt-3 font-display text-4xl text-forest">Opportunity marketplace</h1>
+          <h1 className="mt-3 font-display text-4xl text-forest">Opportunities for every stage</h1>
+          <p className="mt-2 text-inkSoft">Find jobs, training, business support, mentorship and funding.</p>
         </div>
         <a href="/dashboard" className="inline-flex min-h-11 items-center justify-center rounded-xl border border-forest/20 bg-white px-4 py-2 text-sm font-semibold text-forest shadow-sm transition hover:bg-cream2 focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-goldSoft">
           Track application status
@@ -34,8 +39,10 @@ export default async function OpportunitiesPage({
       <OpportunitiesBrowser
         opportunities={opportunities}
         currentUser={learner}
-        initialCategory={category && ["job", "jobs", "learnership", "learnerships", "bursary", "bursaries", "funding"].includes(category) ? category : "jobs"}
+        initialCategory={category ?? "job"}
         onlyMatched={matched === "true"}
+        initialAudience={audience ?? ""}
+        initialProvince={province ?? ""}
       />
     </main>
   );

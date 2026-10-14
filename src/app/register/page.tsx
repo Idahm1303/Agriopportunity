@@ -4,6 +4,7 @@ import Link from "next/link";
 import { signIn } from "next-auth/react";
 import { useRouter } from "next/navigation";
 import { use, useState } from "react";
+import { languages, provinces } from "@/lib/agri-options";
 
 export default function RegisterPage({ searchParams }: { searchParams: Promise<{ role?: string | string[] }> }) {
   const router = useRouter();
@@ -13,10 +14,12 @@ export default function RegisterPage({ searchParams }: { searchParams: Promise<{
     fullName: "",
     email: "",
     password: "",
-    role: requestedRole === "EMPLOYER" ? "EMPLOYER" : "LEARNER",
+    role: ["LEARNER", "FARMER", "SMME", "COOPERATIVE", "EMPLOYER", "PROVIDER"].includes(requestedRole ?? "") ? requestedRole! : "LEARNER",
     organizationName: "",
     phoneNumber: "",
     location: "",
+    province: "",
+    preferredLanguage: "English",
   });
   const [error, setError] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -39,6 +42,9 @@ export default function RegisterPage({ searchParams }: { searchParams: Promise<{
           organizationName: form.organizationName.trim(),
           phoneNumber: form.phoneNumber.trim(),
           location: form.location.trim(),
+          townDistrict: form.location.trim(),
+          province: form.province || undefined,
+          preferredLanguage: form.preferredLanguage,
           skills: form.role === "LEARNER" ? ["Crop science", "Farm operations"] : [],
           qualifications: form.role === "LEARNER" ? ["National Diploma"] : [],
         }),
@@ -58,7 +64,7 @@ export default function RegisterPage({ searchParams }: { searchParams: Promise<{
       if (login?.error) {
         router.push("/login");
       } else {
-        router.push(form.role === "EMPLOYER" ? "/employer/dashboard" : "/profile");
+        router.push(form.role === "EMPLOYER" || form.role === "PROVIDER" ? "/employer/dashboard" : form.role === "LEARNER" ? "/profile" : "/dashboard");
       }
       router.refresh();
     } catch (submitError) {
@@ -78,15 +84,19 @@ export default function RegisterPage({ searchParams }: { searchParams: Promise<{
           <p className="mt-6 text-sm font-semibold uppercase tracking-[0.2em] text-goldSoft">Join AgriOpportunity</p>
           <h1 className="mt-4 font-display text-4xl text-cream lg:text-5xl">Create your account</h1>
           <p className="mt-5 max-w-md text-base leading-7 text-cream/90">
-              {form.role === "EMPLOYER"
+              {form.role === "EMPLOYER" || form.role === "PROVIDER"
                 ? "Create an organisation account to post opportunities, receive applications, and manage applicant progress."
-                : "Create a learner account to find opportunities that match your skills and track your applications."}
+                : form.role === "FARMER"
+                  ? "Create a farmer profile to find training, mentors, markets, equipment and funding for your farm."
+                  : form.role === "SMME" || form.role === "COOPERATIVE"
+                    ? "Build your agricultural business profile, find support programmes and funding, and track applications."
+                    : "Create a learner account to find opportunities that match your skills and track your applications."}
           </p>
           <div className="mt-8 space-y-4">
             {[
               "Tailored opportunity matching",
               "Visible application tracking",
-              "Access to learnerships, jobs, and funding",
+              "Support for learners, farmers, and SMMEs",
             ].map((item) => (
               <div key={item} className="flex items-center gap-3 rounded-2xl border border-white/10 bg-white/5 p-3 text-sm text-cream/90">
                 <span className="inline-flex h-7 w-7 items-center justify-center rounded-full bg-gold/20 text-goldSoft">✓</span>
@@ -99,7 +109,7 @@ export default function RegisterPage({ searchParams }: { searchParams: Promise<{
         <form onSubmit={handleSubmit} className="space-y-5 p-8 lg:p-12">
           <div>
             <p className="text-sm font-semibold uppercase tracking-[0.2em] text-leaf">Get started</p>
-            <h2 className="mt-3 font-display text-3xl text-forest">{form.role === "EMPLOYER" ? "Create employer account" : "Build your profile"}</h2>
+            <h2 className="mt-3 font-display text-3xl text-forest">{form.role === "EMPLOYER" || form.role === "PROVIDER" ? "Create organisation account" : "Build your profile"}</h2>
           </div>
 
           <div>
@@ -147,11 +157,15 @@ export default function RegisterPage({ searchParams }: { searchParams: Promise<{
               className="w-full rounded-xl border border-inkSoft/20 bg-cream px-3 py-3 text-base text-ink focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-goldSoft"
             >
               <option value="LEARNER">Learner</option>
+              <option value="FARMER">Farmer</option>
+              <option value="SMME">Small business (SMME)</option>
+              <option value="COOPERATIVE">Co-operative</option>
               <option value="EMPLOYER">Employer</option>
+              <option value="PROVIDER">Training or support provider</option>
             </select>
           </div>
 
-          {form.role === "EMPLOYER" ? (
+          {["EMPLOYER", "PROVIDER", "SMME", "COOPERATIVE"].includes(form.role) ? (
             <div>
               <label className="mb-2 block text-sm font-medium text-ink" htmlFor="organizationName">Organisation name</label>
               <input
@@ -159,13 +173,13 @@ export default function RegisterPage({ searchParams }: { searchParams: Promise<{
                 value={form.organizationName}
                 onChange={(event) => setForm({ ...form, organizationName: event.target.value })}
                 className="w-full rounded-xl border border-inkSoft/20 bg-cream px-3 py-3 text-base text-ink focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-goldSoft"
-                required
+                required={form.role === "EMPLOYER" || form.role === "PROVIDER"}
               />
               <p className="mt-2 text-xs text-inkSoft">Use the organisation name applicants will see on your listings.</p>
             </div>
           ) : null}
 
-          {form.role === "EMPLOYER" ? (
+          {form.role === "EMPLOYER" || form.role === "PROVIDER" ? (
             <div>
               <label className="mb-2 block text-sm font-medium text-ink" htmlFor="phoneNumber">Contact number</label>
               <input
@@ -181,14 +195,37 @@ export default function RegisterPage({ searchParams }: { searchParams: Promise<{
           ) : null}
 
           <div>
-            <label className="mb-2 block text-sm font-medium text-ink" htmlFor="location">{form.role === "EMPLOYER" ? "Region / province" : "Location"}</label>
+            <label className="mb-2 block text-sm font-medium text-ink" htmlFor="province">Province</label>
+            <select
+              id="province"
+              value={form.province}
+              onChange={(event) => setForm({ ...form, province: event.target.value })}
+              required={["FARMER", "SMME", "COOPERATIVE", "EMPLOYER", "PROVIDER"].includes(form.role)}
+              className="w-full rounded-xl border border-inkSoft/20 bg-cream px-3 py-3 text-base text-ink focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-goldSoft"
+            >
+              <option value="">Choose a province</option>
+              {provinces.map((province) => <option key={province} value={province}>{province}</option>)}
+            </select>
+          </div>
+          <div>
+            <label className="mb-2 block text-sm font-medium text-ink" htmlFor="location">Town or district (optional)</label>
             <input
               id="location"
               value={form.location}
               onChange={(event) => setForm({ ...form, location: event.target.value })}
               className="w-full rounded-xl border border-inkSoft/20 bg-cream px-3 py-3 text-base text-ink focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-goldSoft"
-              required={form.role === "EMPLOYER"}
             />
+          </div>
+          <div>
+            <label className="mb-2 block text-sm font-medium text-ink" htmlFor="preferredLanguage">Preferred language</label>
+            <select
+              id="preferredLanguage"
+              value={form.preferredLanguage}
+              onChange={(event) => setForm({ ...form, preferredLanguage: event.target.value })}
+              className="w-full rounded-xl border border-inkSoft/20 bg-cream px-3 py-3 text-base text-ink focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-goldSoft"
+            >
+              {languages.map((language) => <option key={language} value={language}>{language}</option>)}
+            </select>
           </div>
 
           {error ? <p className="text-sm text-red-700">{error}</p> : null}
@@ -198,7 +235,7 @@ export default function RegisterPage({ searchParams }: { searchParams: Promise<{
             disabled={isSubmitting}
             className="inline-flex w-full items-center justify-center rounded-full bg-forest px-5 py-3.5 font-medium text-cream shadow-lg shadow-forest/15 transition hover:bg-leaf disabled:cursor-not-allowed disabled:opacity-60 focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-goldSoft"
           >
-              {isSubmitting ? "Creating account..." : form.role === "EMPLOYER" ? "Create employer account" : "Create account"}
+              {isSubmitting ? "Creating account..." : form.role === "EMPLOYER" || form.role === "PROVIDER" ? "Create organisation account" : "Create account"}
           </button>
 
           <p className="text-sm text-inkSoft">

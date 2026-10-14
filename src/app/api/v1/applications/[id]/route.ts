@@ -8,7 +8,7 @@ import { updateEmployerApplication } from "@/lib/database";
 import { sendApplicationUpdateEmail } from "@/lib/email";
 
 const statusSchema = z.object({
-  status: z.enum(["submitted", "under_review", "shortlisted", "interview", "successful", "unsuccessful"]).optional(),
+  status: z.enum(["submitted", "under_review", "shortlisted", "interview", "accepted", "rejected", "successful", "unsuccessful"]).optional(),
   verify: z.boolean().optional(),
   place: z.boolean().optional(),
 });
@@ -24,8 +24,8 @@ export async function PATCH(
   }
 
   const role = (session.user as { role?: string } | undefined)?.role ?? "LEARNER";
-  if (!['EMPLOYER', 'ADMIN'].includes(role)) {
-    return NextResponse.json({ error: "Only employers and admins can update status." }, { status: 403 });
+  if (!['EMPLOYER', 'PROVIDER', 'ADMIN'].includes(role)) {
+    return NextResponse.json({ error: "Only employers, providers, and admins can update status." }, { status: 403 });
   }
 
   const { id } = await params;
