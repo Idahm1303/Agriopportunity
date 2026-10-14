@@ -123,8 +123,6 @@ export function SiteHeader() {
               <Link href="/register?role=FARMER" className="rounded-full border border-goldSoft/70 px-3 py-2 text-white/90 hover:bg-leaf">Farmer</Link>
               <Link href="/register?role=SMME" className="rounded-full border border-goldSoft/70 px-3 py-2 text-white/90 hover:bg-leaf">SMME</Link>
               <Link href="/register?role=EMPLOYER" className="rounded-full bg-gold px-3 py-2 text-forest hover:bg-goldSoft">Employer</Link>
-              <Link href="/login" className="rounded-full border border-goldSoft/70 px-3 py-2 text-white/90 hover:bg-leaf">Log in</Link>
-              <Link href="/register" className="rounded-full border border-white/30 px-3 py-2 text-white/90 hover:bg-leaf">Join</Link>
             </>
           )}
         </nav>
