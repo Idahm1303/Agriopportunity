@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useSession } from "next-auth/react";
-import { usePathname, useRouter } from "next/navigation";
+import { useRouter } from "next/navigation";
 import { useEffect, useState, useSyncExternalStore } from "react";
 
 import { roles } from "@/lib/agri-options";
@@ -38,7 +38,6 @@ function dashboardFor(role: string) {
 
 export function SiteHeader() {
   const { data: session, status, update } = useSession();
-  const pathname = usePathname();
   const router = useRouter();
   const [isSwitching, setIsSwitching] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -104,9 +103,9 @@ export function SiteHeader() {
           >
             Data saver: {dataSaver ? "On" : "Off"}
           </button>
-          {pathname !== "/" ? <Link href="/opportunities" className="rounded-full border border-goldSoft/70 px-3 py-2 text-white/90 hover:bg-leaf">Opportunities</Link> : null}
           {status === "authenticated" ? (
             <>
+              <Link href="/opportunities" className="rounded-full border border-goldSoft/70 px-3 py-2 text-white/90 hover:bg-leaf">Explore opportunities</Link>
               <Link href={dashboardFor(activeRole)} className="rounded-full border border-goldSoft/70 px-3 py-2 text-white/90 hover:bg-leaf">Dashboard</Link>
               <label className="flex items-center gap-2 rounded-full border border-white/25 px-3 py-1.5">
                 <span className="sr-only">Active role</span>
@@ -119,20 +118,13 @@ export function SiteHeader() {
             </>
           ) : (
             <>
-              {pathname === "/" ? (
-                <>
-                  <Link href="/opportunities" className="rounded-full border border-goldSoft/70 px-3 py-2 text-white/90 hover:bg-leaf">Explore opportunities</Link>
-                  <Link href="/register" className="rounded-full border border-goldSoft/70 px-3 py-2 text-white/90 hover:bg-leaf">Learner</Link>
-                  <Link href="/register?role=FARMER" className="rounded-full border border-goldSoft/70 px-3 py-2 text-white/90 hover:bg-leaf">Farmer</Link>
-                  <Link href="/register?role=SMME" className="rounded-full border border-goldSoft/70 px-3 py-2 text-white/90 hover:bg-leaf">SMME</Link>
-                  <Link href="/register?role=EMPLOYER" className="rounded-full bg-gold px-3 py-2 text-forest hover:bg-goldSoft">Employer</Link>
-                </>
-              ) : (
-                <>
-                  <Link href="/login" className="rounded-full border border-goldSoft/70 px-3 py-2 text-white/90 hover:bg-leaf">Log in</Link>
-                  <Link href="/register" className="rounded-full bg-gold px-4 py-2 text-forest hover:bg-goldSoft">Join</Link>
-                </>
-              )}
+              <Link href="/opportunities" className="rounded-full border border-goldSoft/70 px-3 py-2 text-white/90 hover:bg-leaf">Explore opportunities</Link>
+              <Link href="/register" className="rounded-full border border-goldSoft/70 px-3 py-2 text-white/90 hover:bg-leaf">Learner</Link>
+              <Link href="/register?role=FARMER" className="rounded-full border border-goldSoft/70 px-3 py-2 text-white/90 hover:bg-leaf">Farmer</Link>
+              <Link href="/register?role=SMME" className="rounded-full border border-goldSoft/70 px-3 py-2 text-white/90 hover:bg-leaf">SMME</Link>
+              <Link href="/register?role=EMPLOYER" className="rounded-full bg-gold px-3 py-2 text-forest hover:bg-goldSoft">Employer</Link>
+              <Link href="/login" className="rounded-full border border-goldSoft/70 px-3 py-2 text-white/90 hover:bg-leaf">Log in</Link>
+              <Link href="/register" className="rounded-full border border-white/30 px-3 py-2 text-white/90 hover:bg-leaf">Join</Link>
             </>
           )}
         </nav>

@@ -1,7 +1,6 @@
 "use client";
 
 import Link from "next/link";
-import Image from "next/image";
 import { signIn } from "next-auth/react";
 import { useRouter } from "next/navigation";
 import { use, useState } from "react";
@@ -93,17 +92,6 @@ export default function RegisterPage({ searchParams }: { searchParams: Promise<{
                     ? "Build your agricultural business profile, find support programmes and funding, and track applications."
                     : "Create a learner account to find opportunities that match your skills and track your applications."}
           </p>
-          {form.role === "FARMER" ? (
-            <div className="relative mt-7 aspect-[16/8] w-full max-w-lg overflow-hidden rounded-2xl ring-1 ring-white/20">
-              <Image
-                src="/images/farmer-farm.jpg"
-                alt="Green crop fields and farm machinery beneath the mountains"
-                fill
-                sizes="(max-width: 1024px) 100vw, 512px"
-                className="object-cover"
-              />
-            </div>
-          ) : null}
           <div className="mt-8 space-y-4">
             {[
               "Tailored opportunity matching",
