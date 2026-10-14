@@ -65,9 +65,11 @@ export function EmployerOpportunityForm() {
         <form onSubmit={submit} aria-label="Create new opportunity" className="mt-5 grid gap-4 rounded-2xl border border-forest/10 bg-cream p-5 md:grid-cols-2">
           <p className="text-sm text-inkSoft md:col-span-2">Create a new draft here. Edit, publish, or close an existing listing from Your opportunities below.</p>
           <input name="title" placeholder="Opportunity title" required className="rounded-xl border border-inkSoft/20 bg-white px-3 py-3 text-ink" />
-          <select name="type" required defaultValue="job" className="rounded-xl border border-inkSoft/20 bg-white px-3 py-3 text-ink">
-            {opportunityTypes.map((type) => <option key={type} value={type}>{opportunityTypeLabels[type]}</option>)}
-          </select>
+          <label className="text-sm font-medium text-ink">Opportunity type
+            <select name="type" required defaultValue="job" className="mt-1 w-full rounded-xl border border-inkSoft/20 bg-white px-3 py-3 text-ink">
+              {opportunityTypes.map((type) => <option key={type} value={type}>{opportunityTypeLabels[type]}</option>)}
+            </select>
+          </label>
           <input name="applicationEmail" type="email" required placeholder="Email for applications" className="rounded-xl border border-inkSoft/20 bg-white px-3 py-3 text-ink" />
           <input name="location" placeholder="Town or district" className="rounded-xl border border-inkSoft/20 bg-white px-3 py-3 text-ink" />
           <select name="province" defaultValue="" className="rounded-xl border border-inkSoft/20 bg-white px-3 py-3 text-ink">

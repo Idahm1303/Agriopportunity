@@ -26,25 +26,16 @@ export function Hero() {
           </p>
           <div className="mt-9 flex flex-wrap gap-3">
             <Link
-              href="/opportunities"
+              href="/login"
               className="inline-flex min-h-12 items-center justify-center rounded-full bg-gold px-6 py-3 font-semibold text-forest transition hover:bg-goldSoft focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-white/70"
             >
-              Explore opportunities
+              Log in
             </Link>
             <Link
               href="/register"
               className="inline-flex min-h-12 items-center justify-center rounded-full border border-white/70 bg-white/10 px-6 py-3 font-semibold text-white transition hover:bg-white/20 focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-goldSoft"
             >
-              Create account learner
-            </Link>
-            <Link href="/register?role=FARMER" className="inline-flex min-h-12 items-center justify-center rounded-full border border-white/70 bg-white/10 px-6 py-3 font-semibold text-white transition hover:bg-white/20 focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-goldSoft">
-              Farmer
-            </Link>
-            <Link href="/register?role=SMME" className="inline-flex min-h-12 items-center justify-center rounded-full border border-white/70 bg-white/10 px-6 py-3 font-semibold text-white transition hover:bg-white/20 focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-goldSoft">
-              SMME
-            </Link>
-            <Link href="/register?role=EMPLOYER" className="inline-flex min-h-12 items-center justify-center rounded-full border border-white/70 bg-white/10 px-6 py-3 font-semibold text-white transition hover:bg-white/20 focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-goldSoft">
-              Employer
+              Join AgriOpportunity
             </Link>
           </div>
         </div>

@@ -5,6 +5,7 @@ import { redirect } from "next/navigation";
 import { authOptions } from "@/lib/auth";
 import { findUserById, getProfileRecommendations, getSavedOpportunities, getUserApplications, getUserProfiles } from "@/lib/database";
 import { ApplicationEmailRetry } from "@/components/ApplicationEmailRetry";
+import { opportunityTypeLabels, opportunityTypes } from "@/lib/agri-options";
 
 export default async function DashboardPage() {
   const session = await getServerSession(authOptions);
@@ -107,13 +108,6 @@ export default async function DashboardPage() {
     active: applications.filter((application) => !["successful", "unsuccessful", "accepted", "rejected", "placed"].includes(application.status)).length,
     successful: applications.filter((application) => ["successful", "accepted", "placed"].includes(application.status)).length,
   };
-  const categoryLinks = [
-    { category: "jobs", label: "Jobs" },
-    { category: "learnerships", label: "Learnerships" },
-    { category: "bursaries", label: "Bursaries" },
-    { category: "funding", label: "Funding" },
-  ];
-
   return (
     <main className="mx-auto max-w-6xl px-4 py-12 sm:px-6 lg:px-8">
       <div className="mb-8 flex flex-col items-start justify-between gap-5 sm:flex-row sm:items-center">
@@ -158,9 +152,9 @@ export default async function DashboardPage() {
           <Link href="/opportunities?matched=true" className="text-sm font-semibold text-forest underline-offset-4 hover:underline">See your best matches</Link>
         </div>
         <div className="flex flex-wrap gap-2">
-          {categoryLinks.map(({ category, label }) => (
-            <Link key={category} href={`/opportunities?category=${category}`} className="rounded-lg border border-forest/15 bg-white px-3 py-2 text-sm font-medium text-forest hover:bg-cream">
-              Browse {label}
+          {opportunityTypes.map((type) => (
+            <Link key={type} href={`/opportunities?category=${type}`} className="rounded-lg border border-forest/15 bg-white px-3 py-2 text-sm font-medium text-forest hover:bg-cream">
+              Browse {opportunityTypeLabels[type]}
             </Link>
           ))}
         </div>
