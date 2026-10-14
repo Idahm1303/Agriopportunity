@@ -95,10 +95,10 @@ SavedOpportunity is the applicant-to-opportunity shortlist join table.
 
 ### OpportunityNotification
 
-`opportunity_notifications` stores new matching SMME programme and funding-call alerts.
+`opportunity_notifications` stores new matching farmer, SMME and co-operative opportunity alerts.
 
-- userId and opportunityId: the SMME/co-operative account and opened listing
-- matchReason: plain-language explanation based on the business profile
+- userId and opportunityId: the account and opened listing
+- matchReason: plain-language explanation based on the profile
 - readAt and emailSentAt: in-app review and email delivery timestamps
 - A unique user/opportunity key prevents duplicate alerts for the same opening.
 
@@ -112,4 +112,5 @@ The AuditLog table records key actions such as application submission or status 
 - `smme_profiles` stores business/entity details, CIPC status, sector, staff count, years trading, turnover band, province, funding stage and support needs.
 - `smme_diagnostics` stores each eight-question answer set, a server-calculated score from 0 to 100, and ranked growth gaps.
 - `opportunity_recommendations` stores a per-user, per-opportunity match score and plain-language reason. Scores are refreshed when matches are requested.
+- Matching farmer-targeted skills programmes, funding calls, funding opportunities, mentorship, bursaries and learnerships create alerts when first published or reopened. Farmer alerts use the account's preferred language.
 - Matching SMME programmes and funding calls create in-app alerts and email notifications when first published or reopened.

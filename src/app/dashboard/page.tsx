@@ -23,7 +23,7 @@ export default async function DashboardPage() {
       getUserProfiles(userId),
       getUserApplications(userId),
       getProfileRecommendations(userId, role),
-      !isFarmer ? getOpportunityNotifications(userId) : Promise.resolve([]),
+      getOpportunityNotifications(userId),
     ]);
     if (!user) redirect("/login?callbackUrl=%2Fdashboard");
     const profileHref = isFarmer ? "/profile/farmer" : "/profile/smme";
@@ -51,10 +51,22 @@ export default async function DashboardPage() {
             <p className="mt-2 text-inkSoft">Latest score: <strong className="text-forest">{profiles.diagnostic.score} / 100</strong></p>
           </section>
         ) : null}
-        {!isFarmer ? <SmmeNotifications initialNotifications={notifications} /> : null}
+        <SmmeNotifications
+          initialNotifications={notifications}
+          audience={isFarmer ? "FARMER" : "SMME"}
+          language={user.preferredLanguage}
+        />
 
         <section className="grid gap-6 lg:grid-cols-[0.8fr_1.2fr]">
           <div className="space-y-6">
+            {isFarmer ? (
+              <section className="rounded-2xl bg-white p-5 ring-1 ring-forest/10">
+                <h2 className="font-display text-xl text-forest">Children and farm workers</h2>
+                <p className="mt-2 text-sm text-inkSoft">They can join as learners with their own account to find training and track applications.</p>
+                <Link href="/register?role=LEARNER" className="mt-3 inline-flex min-h-11 items-center rounded-xl border border-forest/20 px-4 py-2 text-sm font-semibold text-forest">Create a learner account</Link>
+                <p className="mt-3 text-sm text-inkSoft">If you hire workers, use Active role in the top bar to add or switch to Employer without creating another account.</p>
+              </section>
+            ) : null}
             <section className="rounded-2xl bg-white p-5 ring-1 ring-forest/10">
               <h2 className="font-display text-xl text-forest">Your profile</h2>
               <dl className="mt-4 space-y-3 text-sm text-inkSoft">
@@ -78,7 +90,8 @@ export default async function DashboardPage() {
           </div>
 
           <section className="rounded-2xl bg-white p-5 ring-1 ring-forest/10">
-            <h2 className="font-display text-2xl text-forest">Recommended opportunities</h2>
+            <h2 className="font-display text-2xl text-forest">{isFarmer ? "Opportunities that may suit your farm" : "Recommended opportunities"}</h2>
+            {isFarmer ? <p className="mt-1 text-sm text-inkSoft">Each match explains why it may fit. Open a listing to check its eligibility details before applying.</p> : null}
             <div className="mt-4 space-y-3">
               {matches.filter((match) => match.matchScore > 0).slice(0, 7).map((match) => (
                 <article key={match.id} className="rounded-xl bg-cream p-4">

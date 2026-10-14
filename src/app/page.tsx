@@ -1,5 +1,6 @@
 import Link from "next/link";
 import Image from "next/image";
+import { cookies } from "next/headers";
 import { connection } from "next/server";
 
 import { Hero } from "@/components/Hero";
@@ -22,6 +23,7 @@ const featureCards = [
 
 export default async function Home() {
   await connection();
+  const dataSaver = (await cookies()).get("agri-data-saver")?.value === "on";
   const [learnerCount, openOpportunityCount, fundingPartnerCount] = await Promise.all([
     countLearners(),
     countOpenOpportunities(),
@@ -30,7 +32,7 @@ export default async function Home() {
 
   return (
     <main className="min-h-screen bg-agri-mint text-ink">
-      <Hero />
+      <Hero dataSaver={dataSaver} />
 
       <section className="bg-cream">
         <div className="mx-auto max-w-6xl px-4 py-16 sm:px-6 lg:px-8">
@@ -43,15 +45,18 @@ export default async function Home() {
               </p>
             </div>
             <div className="flex w-full flex-col gap-4 sm:w-auto sm:items-end">
-              <div className="relative aspect-[3/2] w-full max-w-sm overflow-hidden rounded-3xl shadow-lg ring-1 ring-leaf/20">
-                <Image
-                  src="/images/hero-tech.jpg"
-                  alt="Young agricultural plants alongside digital farming technology graphics"
-                  fill
-                  sizes="(max-width: 640px) 100vw, 384px"
-                  className="object-cover"
-                />
-              </div>
+              {!dataSaver ? (
+                <div className="relative aspect-[3/2] w-full max-w-sm overflow-hidden rounded-3xl shadow-lg ring-1 ring-leaf/20">
+                  <Image
+                    src="/images/hero-tech.jpg"
+                    alt="Young agricultural plants alongside digital farming technology graphics"
+                    fill
+                    sizes="(max-width: 640px) 100vw, 384px"
+                    className="object-cover"
+                    data-saver-decorative="true"
+                  />
+                </div>
+              ) : null}
               <Link href="/login" className="inline-flex min-h-11 items-center justify-center self-start rounded-full bg-forest px-5 py-2 text-sm font-semibold text-white transition hover:bg-leaf focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-goldSoft sm:self-end">
                 Login
               </Link>

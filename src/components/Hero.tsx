@@ -1,17 +1,20 @@
 import Link from "next/link";
 import Image from "next/image";
 
-export function Hero() {
+export function Hero({ dataSaver = false }: { dataSaver?: boolean }) {
   return (
     <section className="relative isolate min-h-[34rem] w-full overflow-hidden text-white sm:min-h-[38rem]">
-      <Image
-        src="/images/hero-seedling.jpg"
-        alt=""
-        fill
-        priority
-        sizes="100vw"
-        className="object-cover object-[center_55%]"
-      />
+      {!dataSaver ? (
+        <Image
+          src="/images/hero-seedling.jpg"
+          alt=""
+          fill
+          priority
+          sizes="100vw"
+          className="object-cover object-[center_55%]"
+          data-saver-decorative="true"
+        />
+      ) : null}
       <div aria-hidden="true" className="absolute inset-0 bg-gradient-to-r from-forest/95 via-forest/75 to-forest/25" />
       <div className="relative mx-auto flex min-h-[34rem] max-w-6xl items-center px-4 py-16 sm:min-h-[38rem] sm:px-6 lg:px-8">
         <div className="max-w-3xl">

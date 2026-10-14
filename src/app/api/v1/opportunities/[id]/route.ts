@@ -3,7 +3,7 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 
 import { authOptions } from "@/lib/auth";
-import { getOpportunityById, notifySmmeUsersAboutOpportunity, updateOpportunityDetails, updateOpportunityStatus } from "@/lib/database";
+import { getOpportunityById, notifyUsersAboutOpportunity, updateOpportunityDetails, updateOpportunityStatus } from "@/lib/database";
 import { addAuditEntry } from "@/lib/audit";
 import { opportunityTypes } from "@/lib/agri-options";
 
@@ -86,15 +86,15 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
           : null;
       })();
   const resolvedOpportunity = await opportunity;
-  let notificationSummary: Awaited<ReturnType<typeof notifySmmeUsersAboutOpportunity>> | undefined;
+  let notificationSummary: Awaited<ReturnType<typeof notifyUsersAboutOpportunity>> | undefined;
   let notificationWarning: string | undefined;
   if (resolvedOpportunity && body.status === "open" && previousOpportunity?.status !== "open") {
     try {
-      notificationSummary = await notifySmmeUsersAboutOpportunity(resolvedOpportunity.id);
+      notificationSummary = await notifyUsersAboutOpportunity(resolvedOpportunity.id);
       notificationWarning = notificationSummary.emailWarning ?? undefined;
     } catch (error) {
-      notificationWarning = "The opportunity opened, but matching SMME notifications could not be created.";
-      console.error(`Unable to create SMME alerts for opened opportunity ${resolvedOpportunity.id}:`, error);
+      notificationWarning = "The opportunity opened, but matching profile notifications could not be created.";
+      console.error(`Unable to create alerts for opened opportunity ${resolvedOpportunity.id}:`, error);
     }
   }
   if (resolvedOpportunity) {

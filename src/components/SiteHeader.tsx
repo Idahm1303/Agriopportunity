@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useSession } from "next-auth/react";
 import { usePathname, useRouter } from "next/navigation";
-import { useState } from "react";
+import { useEffect, useState, useSyncExternalStore } from "react";
 
 import { roles } from "@/lib/agri-options";
 
@@ -17,6 +17,19 @@ const roleLabels: Record<string, string> = {
   ADMIN: "Admin",
 };
 
+function subscribeToDataSaver(onChange: () => void) {
+  window.addEventListener("storage", onChange);
+  window.addEventListener("agri-data-saver-change", onChange);
+  return () => {
+    window.removeEventListener("storage", onChange);
+    window.removeEventListener("agri-data-saver-change", onChange);
+  };
+}
+
+function getDataSaverSnapshot() {
+  return window.localStorage.getItem("agri-data-saver") === "on";
+}
+
 function dashboardFor(role: string) {
   if (role === "ADMIN") return "/admin/dashboard";
   if (role === "EMPLOYER" || role === "PROVIDER") return "/employer/dashboard";
@@ -29,9 +42,21 @@ export function SiteHeader() {
   const router = useRouter();
   const [isSwitching, setIsSwitching] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const dataSaver = useSyncExternalStore(subscribeToDataSaver, getDataSaverSnapshot, () => false);
   const user = session?.user as { role?: string; roles?: string[] } | undefined;
   const activeRole = user?.role ?? "";
   const assignedRoles = user?.roles ?? (activeRole ? [activeRole] : []);
+
+  useEffect(() => {
+    document.documentElement.dataset.dataSaver = dataSaver ? "on" : "off";
+  }, [dataSaver]);
+
+  const toggleDataSaver = () => {
+    const enabled = !dataSaver;
+    window.localStorage.setItem("agri-data-saver", enabled ? "on" : "off");
+    document.cookie = `agri-data-saver=${enabled ? "on" : "off"}; Path=/; Max-Age=31536000; SameSite=Lax${window.location.protocol === "https:" ? "; Secure" : ""}`;
+    window.dispatchEvent(new Event("agri-data-saver-change"));
+  };
 
   const switchRole = async (nextRole: string) => {
     if (!nextRole || nextRole === activeRole) return;
@@ -71,6 +96,14 @@ export function SiteHeader() {
       <div className="mx-auto flex max-w-6xl flex-wrap items-center justify-between gap-3 px-4 py-4 sm:px-6 lg:px-8">
         <Link href="/" className="font-display text-2xl tracking-tight">AgriOpportunity</Link>
         <nav aria-label="Main navigation" className="flex flex-wrap items-center gap-2 text-sm font-medium">
+          <button
+            type="button"
+            aria-pressed={dataSaver}
+            onClick={toggleDataSaver}
+            className="rounded-full border border-white/25 px-3 py-2 text-white/90 hover:bg-leaf focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-goldSoft"
+          >
+            Data saver: {dataSaver ? "On" : "Off"}
+          </button>
           {pathname !== "/" ? <Link href="/opportunities" className="rounded-full border border-goldSoft/70 px-3 py-2 text-white/90 hover:bg-leaf">Opportunities</Link> : null}
           {status === "authenticated" ? (
             <>

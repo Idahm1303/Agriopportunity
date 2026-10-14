@@ -403,20 +403,27 @@ export async function getProfileRecommendations(userId: string, activeRole?: Rol
   return ranked;
 }
 
-export async function notifySmmeUsersAboutOpportunity(opportunityId: string) {
+export async function notifyUsersAboutOpportunity(opportunityId: string) {
   const opportunity = await getOpportunityById(opportunityId);
-  if (!opportunity || !["smme_programme", "funding_call"].includes(opportunity.type ?? opportunity.category)) {
+  const type = opportunity?.type ?? opportunity?.category ?? "";
+  const farmerOpportunityTypes = ["skills_programme", "funding_call", "funding", "mentorship", "bursary", "learnership"];
+  const smmeOpportunityTypes = ["smme_programme", "funding_call"];
+  if (!opportunity || (!farmerOpportunityTypes.includes(type) && !smmeOpportunityTypes.includes(type))) {
     return { notified: 0, emailed: 0, emailWarning: null as string | null };
   }
 
   const audience = opportunity.targetAudience ?? [];
   const recipients = await prisma.user.findMany({
     where: {
-      roles: { some: { role: { in: ["SMME", "COOPERATIVE"] } } },
-      smmeProfile: { isNot: null },
+      roles: { some: { role: { in: ["FARMER", "SMME", "COOPERATIVE"] } } },
+      OR: [
+        { farmerProfile: { isNot: null } },
+        { smmeProfile: { isNot: null } },
+      ],
     },
     include: {
       roles: { select: { role: true } },
+      farmerProfile: true,
       smmeProfile: true,
       smmeDiagnostics: { orderBy: { createdAt: "desc" }, take: 1 },
     },
@@ -426,44 +433,70 @@ export async function notifySmmeUsersAboutOpportunity(opportunityId: string) {
     email: string;
     businessName: string;
     matchReason: string;
+    audience: "FARMER" | "SMME";
+    preferredLanguage: string;
   }> = [];
 
   for (const recipient of recipients) {
-    const profile = recipient.smmeProfile;
-    if (!profile) continue;
+    const farmerProfile = recipient.farmerProfile;
+    const smmeProfile = recipient.smmeProfile;
+    const hasFarmerRole = recipient.roles.some(({ role }) => role === "FARMER");
     const hasSmmeRole = recipient.roles.some(({ role }) => role === "SMME");
     const hasCooperativeRole = recipient.roles.some(({ role }) => role === "COOPERATIVE");
-    const matchRole: Role | undefined = !audience.length
-      ? (hasSmmeRole ? "SMME" : hasCooperativeRole ? "COOPERATIVE" : undefined)
-      : audience.includes("smme") && hasSmmeRole
+    const farmerMatchesAudience = (!audience.length || audience.includes("farmer")) && farmerOpportunityTypes.includes(type);
+    const smmeRole = smmeOpportunityTypes.includes(type) && (!audience.length || audience.includes("smme")) && hasSmmeRole;
+    const cooperativeRole = smmeOpportunityTypes.includes(type) && (!audience.length || audience.includes("cooperative")) && hasCooperativeRole;
+    const matchRole: Role | undefined = hasFarmerRole && farmerProfile && farmerMatchesAudience
+      ? "FARMER"
+      : smmeRole && smmeProfile
         ? "SMME"
-        : audience.includes("cooperative") && hasCooperativeRole
+        : cooperativeRole && smmeProfile
           ? "COOPERATIVE"
           : undefined;
     if (!matchRole) continue;
 
+    const isFarmer = matchRole === "FARMER";
     const diagnosticGaps = recipient.smmeDiagnostics[0]?.gaps;
-    const gaps = Array.isArray(diagnosticGaps)
+    const gaps = !isFarmer && Array.isArray(diagnosticGaps)
       ? diagnosticGaps.flatMap((gap) =>
           typeof gap === "object" && gap !== null && "recommendedTypes" in gap && Array.isArray(gap.recommendedTypes)
-            ? gap.recommendedTypes.filter((type): type is string => typeof type === "string")
+            ? gap.recommendedTypes.filter((recommendedType): recommendedType is string => typeof recommendedType === "string")
             : [],
         )
       : [];
-    const user = { ...mapUser(recipient), role: matchRole };
-    const result = profileRecommendation(opportunity, user, {
-      province: profile.province,
-      sector: profile.sectorFocus,
-      stage: profile.fundingStage,
-      needs: profile.needs,
-      gaps,
-    });
+    const user = { ...mapUser(recipient), role: matchRole } as User;
+    let recommendationProfile: Parameters<typeof profileRecommendation>[2];
+    let displayName: string;
+    if (isFarmer) {
+      if (!farmerProfile) continue;
+      recommendationProfile = {
+          province: farmerProfile.province,
+          sector: farmerProfile.farmingType,
+          stage: farmerProfile.farmerStage,
+          needs: farmerProfile.needs,
+          commodities: farmerProfile.mainCommodities,
+        };
+      displayName = farmerProfile.farmName ?? recipient.fullName;
+    } else {
+      if (!smmeProfile) continue;
+      recommendationProfile = {
+          province: smmeProfile.province,
+          sector: smmeProfile.sectorFocus,
+          stage: smmeProfile.fundingStage,
+          needs: smmeProfile.needs,
+          gaps,
+        };
+      displayName = smmeProfile.businessName ?? recipient.organizationName ?? recipient.fullName;
+    }
+    const result = profileRecommendation(opportunity, user, recommendationProfile);
     if (result.score <= 20) continue;
     matching.push({
       userId: recipient.id,
       email: recipient.email,
-      businessName: profile.businessName ?? recipient.organizationName ?? recipient.fullName,
+      businessName: displayName,
       matchReason: result.reason,
+      audience: isFarmer ? "FARMER" : "SMME",
+      preferredLanguage: recipient.preferredLanguage,
     });
   }
 
@@ -499,6 +532,8 @@ export async function notifySmmeUsersAboutOpportunity(opportunityId: string) {
           opportunityTitle: opportunity.title,
           opportunityId,
           matchReason: recipient.matchReason,
+          audience: recipient.audience,
+          preferredLanguage: recipient.preferredLanguage,
         });
         if (!result.sent) return { sent: false, reason: result.reason };
         await prisma.opportunityNotification.update({
@@ -508,7 +543,7 @@ export async function notifySmmeUsersAboutOpportunity(opportunityId: string) {
         return { sent: true, reason: null };
       } catch (error) {
         const reason = error instanceof Error ? error.message : "Email delivery failed.";
-        console.error(`Unable to send an SMME opportunity alert for notification ${recipient.notificationId}: ${reason}`);
+        console.error(`Unable to send an opportunity alert for notification ${recipient.notificationId}: ${reason}`);
         return { sent: false, reason };
       }
     }));

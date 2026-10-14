@@ -1,3 +1,5 @@
+import { getFarmerEmailCopy } from "@/lib/notification-copy";
+
 type ApplicationEmailInput = {
   recipient: string;
   applicantName: string;
@@ -86,20 +88,23 @@ export function sendNewOpportunityMatchEmail(input: {
   opportunityTitle: string;
   opportunityId: string;
   matchReason: string;
+  audience?: "FARMER" | "SMME";
+  preferredLanguage?: string;
 }) {
   const baseUrl = (process.env.NEXTAUTH_URL ?? "https://agriopportunity.vercel.app").replace(/\/+$/, "");
+  const farmerCopy = input.audience === "FARMER" ? getFarmerEmailCopy(input.preferredLanguage ?? "English") : null;
   return sendResendEmail({
     recipient: input.recipient,
-    subject: `New opportunity match: ${input.opportunityTitle}`,
+    subject: farmerCopy ? `${farmerCopy.subject}: ${input.opportunityTitle}` : `New opportunity match: ${input.opportunityTitle}`,
     text: [
-      `Hello ${input.businessName},`,
+      ...(farmerCopy ? [] : [`Hello ${input.businessName},`, ""]),
+      farmerCopy
+        ? `${input.opportunityTitle}: ${farmerCopy.intro}`
+        : `A new opportunity that may fit your business is now open: ${input.opportunityTitle}.`,
+      farmerCopy ? "" : input.matchReason,
       "",
-      `A new opportunity that may fit your business is now open: ${input.opportunityTitle}.`,
-      input.matchReason,
-      "",
-      `View details and apply: ${baseUrl}/opportunities/${input.opportunityId}`,
-      "",
-      "You can update your business profile and support needs from your AgriOpportunity dashboard.",
+      `${farmerCopy?.action ?? "View details and apply"}: ${baseUrl}/opportunities/${input.opportunityId}`,
+      ...(farmerCopy ? [] : ["", "You can update your business profile and support needs from your AgriOpportunity dashboard."]),
     ].join("\n"),
   });
 }

@@ -19,7 +19,7 @@ export default async function FarmerProfilePage() {
       <div>
         <p className="text-sm font-semibold uppercase tracking-[0.18em] text-leaf">Farmer profile</p>
         <h1 className="mt-2 font-display text-4xl text-forest">Tell us about your farm</h1>
-        <p className="mt-2 text-inkSoft">This helps us find useful training, funding, mentorship, market and equipment opportunities.</p>
+        <p className="mt-2 text-inkSoft">This helps us find useful training, funding, mentorship, market and equipment opportunities. A feature-phone and USSD option is planned; you can use this simple form for now.</p>
       </div>
       <FarmerProfileForm initialProfile={farmer} />
       <ProfileDocumentsPanel />
