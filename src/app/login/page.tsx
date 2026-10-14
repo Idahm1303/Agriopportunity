@@ -50,11 +50,6 @@ export default function LoginPage() {
           <p className="mt-5 max-w-md text-base leading-7 text-cream/90">
             Sign in with your email and password to manage employer listings and applicants or track your learner applications.
           </p>
-          <div className="mt-8 rounded-2xl border border-white/15 bg-white/5 p-4 backdrop-blur-sm">
-            <p className="text-sm text-cream/80">Demo learner access</p>
-            <p className="mt-2 font-medium text-white">learner@agriopportunity.co.za</p>
-            <p className="text-sm text-goldSoft">Password123!</p>
-          </div>
         </div>
 
         <form onSubmit={handleSubmit} className="space-y-5 p-8 lg:p-12">
