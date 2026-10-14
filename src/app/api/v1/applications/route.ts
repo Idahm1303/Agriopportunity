@@ -8,7 +8,7 @@ import { authOptions } from "@/lib/auth";
 import { deliverApplicationEmails } from "@/lib/application-email";
 import { createApplication, createDocument, getEmployerApplications, getUserApplications } from "@/lib/database";
 import { prisma } from "@/lib/prisma";
-import { extractQualification } from "@/lib/qualification-ocr";
+import { extractQualification, qualificationDocumentType } from "@/lib/qualification-ocr";
 import { uploadDocument } from "@/lib/object-storage";
 import type { Role } from "@/lib/mock-data";
 
@@ -16,7 +16,6 @@ const applicationSchema = z.object({
   opportunityId: z.string().min(1, "Opportunity ID is required."),
   coverNote: z.string().trim().min(10, "Write a cover note of at least 10 characters.").max(2000, "Cover notes must be 2,000 characters or fewer."),
 });
-const allowedDocumentTypes = new Set(["application/pdf", "image/jpeg", "image/png"]);
 const allowedCVTypes = new Set([
   "application/pdf",
   "application/msword",
@@ -112,7 +111,7 @@ export async function POST(request: Request) {
 
     const qualificationDocument = formData.get("qualificationDocument");
     if (qualificationDocument instanceof File && qualificationDocument.size > 0) {
-      if (!allowedDocumentTypes.has(qualificationDocument.type)) {
+      if (!qualificationDocumentType(qualificationDocument)) {
         return NextResponse.json({ error: "Upload a qualification document as a PDF, JPG, or PNG." }, { status: 400 });
       }
       if (qualificationDocument.size > maximumDocumentSize) {
@@ -129,9 +128,14 @@ export async function POST(request: Request) {
     const qualificationStorageKey = qualificationDocument instanceof File && qualificationDocument.size > 0
       ? await uploadDocument({ file: qualificationDocument, userId, documentType: "qualification", referenceId: parsed.data.opportunityId })
       : null;
-    const extraction = qualificationStorageKey && qualificationDocument instanceof File
-      ? await extractQualification(qualificationDocument)
-      : { extractedText: "", qualifications: [], skills: [], confidence: 0 };
+    let extraction = { extractedText: "", qualifications: [] as string[], skills: [] as string[], confidence: 0 };
+    if (qualificationStorageKey && qualificationDocument instanceof File) {
+      try {
+        extraction = await extractQualification(qualificationDocument);
+      } catch (extractionError) {
+        console.error("Qualification document processing failed", extractionError);
+      }
+    }
 
     const application = await createApplication({
       userId,
