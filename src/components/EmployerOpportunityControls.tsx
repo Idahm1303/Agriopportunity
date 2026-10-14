@@ -42,7 +42,10 @@ export function EmployerOpportunityControls({ opportunityId, status, title, desc
       });
       const payload = await response.json();
       if (!response.ok) throw new Error(payload.error ?? "Unable to update opportunity.");
-      setMessage(nextStatus === "open" ? "Opportunity published." : "Opportunity closed.");
+      const alertCount = typeof payload.notificationSummary?.notified === "number" ? payload.notificationSummary.notified : null;
+      const notificationWarning = typeof payload.notificationWarning === "string" ? payload.notificationWarning : null;
+      const alertMessage = alertCount === null ? "" : ` ${alertCount} matching SMME alert${alertCount === 1 ? "" : "s"} created.`;
+      setMessage(`${nextStatus === "open" ? "Opportunity published." : "Opportunity closed."}${alertMessage}${notificationWarning ? ` ${notificationWarning}` : ""}`);
       router.refresh();
     } catch (error) {
       setMessage(error instanceof Error ? error.message : "Unable to update opportunity.");

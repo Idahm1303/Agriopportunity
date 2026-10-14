@@ -3,8 +3,9 @@ import { getServerSession } from "next-auth";
 import { redirect } from "next/navigation";
 
 import { authOptions } from "@/lib/auth";
-import { findUserById, getProfileRecommendations, getSavedOpportunities, getUserApplications, getUserProfiles } from "@/lib/database";
+import { findUserById, getOpportunityNotifications, getProfileRecommendations, getSavedOpportunities, getUserApplications, getUserProfiles } from "@/lib/database";
 import { ApplicationEmailRetry } from "@/components/ApplicationEmailRetry";
+import { SmmeNotifications } from "@/components/SmmeNotifications";
 import { opportunityTypeLabels, opportunityTypes } from "@/lib/agri-options";
 
 export default async function DashboardPage() {
@@ -16,14 +17,15 @@ export default async function DashboardPage() {
   if (!userId) redirect("/login?callbackUrl=%2Fdashboard");
 
   if (role === "FARMER" || role === "SMME" || role === "COOPERATIVE") {
-    const [user, profiles, applications, matches] = await Promise.all([
+    const isFarmer = role === "FARMER";
+    const [user, profiles, applications, matches, notifications] = await Promise.all([
       findUserById(userId),
       getUserProfiles(userId),
       getUserApplications(userId),
       getProfileRecommendations(userId, role),
+      !isFarmer ? getOpportunityNotifications(userId) : Promise.resolve([]),
     ]);
     if (!user) redirect("/login?callbackUrl=%2Fdashboard");
-    const isFarmer = role === "FARMER";
     const profileHref = isFarmer ? "/profile/farmer" : "/profile/smme";
     const profileName = isFarmer ? profiles.farmer?.farmName ?? user.fullName : profiles.smme?.businessName ?? user.organizationName ?? user.fullName;
     const matchCount = matches.filter((match) => match.matchScore > 0).length;
@@ -34,12 +36,12 @@ export default async function DashboardPage() {
           <div>
             <p className="text-sm font-semibold uppercase tracking-[0.18em] text-leaf">{role === "FARMER" ? "Farmer dashboard" : "SMME dashboard"}</p>
             <h1 className="mt-2 font-display text-4xl text-forest">Welcome, {profileName}</h1>
-            <p className="mt-2 text-inkSoft">{matchCount} opportunities match your profile.</p>
+            <p className="mt-2 text-inkSoft">{matchCount} opportunities match your {isFarmer ? "farm" : "business"}.</p>
           </div>
           <div className="flex flex-wrap gap-3">
             <Link href={profileHref} className="rounded-xl border border-forest/20 px-4 py-3 text-sm font-semibold text-forest">Update your profile</Link>
             {!isFarmer ? <Link href="/profile/smme#diagnostic-title" className="rounded-xl bg-forest px-4 py-3 text-sm font-semibold text-white">Take readiness check</Link> : null}
-            <Link href="/opportunities?matched=true" className="rounded-xl bg-gold px-4 py-3 text-sm font-semibold text-forest">Browse matches</Link>
+            <Link href="/opportunities?matched=true&category=all" className="rounded-xl bg-gold px-4 py-3 text-sm font-semibold text-forest">Browse matches</Link>
           </div>
         </div>
 
@@ -49,6 +51,7 @@ export default async function DashboardPage() {
             <p className="mt-2 text-inkSoft">Latest score: <strong className="text-forest">{profiles.diagnostic.score} / 100</strong></p>
           </section>
         ) : null}
+        {!isFarmer ? <SmmeNotifications initialNotifications={notifications} /> : null}
 
         <section className="grid gap-6 lg:grid-cols-[0.8fr_1.2fr]">
           <div className="space-y-6">

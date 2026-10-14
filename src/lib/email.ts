@@ -80,6 +80,30 @@ export function sendApplicationConfirmation(input: {
   });
 }
 
+export function sendNewOpportunityMatchEmail(input: {
+  recipient: string;
+  businessName: string;
+  opportunityTitle: string;
+  opportunityId: string;
+  matchReason: string;
+}) {
+  const baseUrl = (process.env.NEXTAUTH_URL ?? "https://agriopportunity.vercel.app").replace(/\/+$/, "");
+  return sendResendEmail({
+    recipient: input.recipient,
+    subject: `New opportunity match: ${input.opportunityTitle}`,
+    text: [
+      `Hello ${input.businessName},`,
+      "",
+      `A new opportunity that may fit your business is now open: ${input.opportunityTitle}.`,
+      input.matchReason,
+      "",
+      `View details and apply: ${baseUrl}/opportunities/${input.opportunityId}`,
+      "",
+      "You can update your business profile and support needs from your AgriOpportunity dashboard.",
+    ].join("\n"),
+  });
+}
+
 export async function sendApplicationUpdateEmail(input: ApplicationEmailInput) {
   const outcome = input.placed
     ? "You have been selected for placement."

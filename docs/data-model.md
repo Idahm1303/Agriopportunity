@@ -93,6 +93,15 @@ SavedOpportunity is the applicant-to-opportunity shortlist join table.
 - applicantId and opportunityId: composite primary key
 - savedAt: time the opportunity was saved
 
+### OpportunityNotification
+
+`opportunity_notifications` stores new matching SMME programme and funding-call alerts.
+
+- userId and opportunityId: the SMME/co-operative account and opened listing
+- matchReason: plain-language explanation based on the business profile
+- readAt and emailSentAt: in-app review and email delivery timestamps
+- A unique user/opportunity key prevents duplicate alerts for the same opening.
+
 ### AuditLog
 
 The AuditLog table records key actions such as application submission or status changes to support traceability and future reporting.
@@ -103,3 +112,4 @@ The AuditLog table records key actions such as application submission or status 
 - `smme_profiles` stores business/entity details, CIPC status, sector, staff count, years trading, turnover band, province, funding stage and support needs.
 - `smme_diagnostics` stores each eight-question answer set, a server-calculated score from 0 to 100, and ranked growth gaps.
 - `opportunity_recommendations` stores a per-user, per-opportunity match score and plain-language reason. Scores are refreshed when matches are requested.
+- Matching SMME programmes and funding calls create in-app alerts and email notifications when first published or reopened.

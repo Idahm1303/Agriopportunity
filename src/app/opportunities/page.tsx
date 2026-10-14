@@ -18,6 +18,9 @@ export default async function OpportunitiesPage({
   const session = await getServerSession(authOptions);
   const sessionUser = session?.user as { userId?: string; role?: string } | undefined;
   const userId = sessionUser?.userId;
+  const initialCategory = category ?? (
+    sessionUser?.role === "SMME" || sessionUser?.role === "COOPERATIVE" ? "all" : "job"
+  );
   const [opportunities, learner] = await Promise.all([
     userId ? getProfileRecommendations(userId, sessionUser?.role as Role | undefined) : listOpportunities(),
     userId ? findUserById(userId) : Promise.resolve(undefined),
@@ -39,7 +42,7 @@ export default async function OpportunitiesPage({
       <OpportunitiesBrowser
         opportunities={opportunities}
         currentUser={learner}
-        initialCategory={category ?? "job"}
+        initialCategory={initialCategory}
         onlyMatched={matched === "true"}
         initialAudience={audience ?? ""}
         initialProvince={province ?? ""}

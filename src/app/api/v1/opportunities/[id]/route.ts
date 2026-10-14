@@ -3,7 +3,7 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 
 import { authOptions } from "@/lib/auth";
-import { getOpportunityById, updateOpportunityDetails, updateOpportunityStatus } from "@/lib/database";
+import { getOpportunityById, notifySmmeUsersAboutOpportunity, updateOpportunityDetails, updateOpportunityStatus } from "@/lib/database";
 import { addAuditEntry } from "@/lib/audit";
 import { opportunityTypes } from "@/lib/agri-options";
 
@@ -50,6 +50,7 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
     return NextResponse.json({ error: "Provide valid opportunity details." }, { status: 400 });
   }
   const { id } = await params;
+  const previousOpportunity = "status" in body ? await getOpportunityById(id) : undefined;
   const opportunity = "status" in body
     ? (() => {
         const parsed = statusSchema.safeParse(body);
@@ -85,6 +86,17 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
           : null;
       })();
   const resolvedOpportunity = await opportunity;
+  let notificationSummary: Awaited<ReturnType<typeof notifySmmeUsersAboutOpportunity>> | undefined;
+  let notificationWarning: string | undefined;
+  if (resolvedOpportunity && body.status === "open" && previousOpportunity?.status !== "open") {
+    try {
+      notificationSummary = await notifySmmeUsersAboutOpportunity(resolvedOpportunity.id);
+      notificationWarning = notificationSummary.emailWarning ?? undefined;
+    } catch (error) {
+      notificationWarning = "The opportunity opened, but matching SMME notifications could not be created.";
+      console.error(`Unable to create SMME alerts for opened opportunity ${resolvedOpportunity.id}:`, error);
+    }
+  }
   if (resolvedOpportunity) {
     await addAuditEntry({
       action: "status" in body ? (body.status === "open" ? "opportunity_published" : "opportunity_closed") : "opportunity_updated",
@@ -95,6 +107,6 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
     });
   }
   return resolvedOpportunity
-    ? NextResponse.json({ opportunity: resolvedOpportunity })
+    ? NextResponse.json({ opportunity: resolvedOpportunity, notificationSummary, notificationWarning })
     : NextResponse.json({ error: "Opportunity details or status are invalid, or the listing was not found." }, { status: 400 });
 }

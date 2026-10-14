@@ -14,6 +14,7 @@ const audienceOptions = [
 ];
 
 function normalizeCategory(value: string) {
+  if (value === "all") return "all";
   const aliases: Record<string, OpportunityType> = {
     jobs: "job",
     learnerships: "learnership",
@@ -55,6 +56,7 @@ export function OpportunitiesBrowser({
   const [category, setCategory] = useState(() => normalizeCategory(initialCategory));
   const [audience, setAudience] = useState(initialAudience);
   const [province, setProvince] = useState(initialProvince);
+  const [closingBefore, setClosingBefore] = useState("");
   const normalizedUserLocation = currentUser?.province ?? currentUser?.location;
 
   const categoryCounts = useMemo(() => Object.fromEntries(
@@ -71,12 +73,14 @@ export function OpportunitiesBrowser({
         opportunity.requiredSkills.some((skill) => skill.toLowerCase().includes(searchValue));
       const audienceMatches = !audience || !opportunity.targetAudience?.length || opportunity.targetAudience.includes(audience);
       const provinceMatches = !province || !opportunity.province || opportunity.province === province;
-      return type === category && (!onlyMatched || matchScore > 0) && searchMatches && audienceMatches && provinceMatches;
+      const closingDate = opportunity.closingDate ?? opportunity.expiresAt;
+      const closingDateMatches = !closingBefore || Boolean(closingDate && closingDate.slice(0, 10) <= closingBefore);
+      return (category === "all" || type === category) && (!onlyMatched || matchScore > 0) && searchMatches && audienceMatches && provinceMatches && closingDateMatches;
     }).sort((left, right) =>
       (right.matchScore ?? fallbackMatchScore(currentUser?.skills, right.requiredSkills, right.province ?? right.location, normalizedUserLocation)) -
       (left.matchScore ?? fallbackMatchScore(currentUser?.skills, left.requiredSkills, left.province ?? left.location, normalizedUserLocation)),
     );
-  }, [audience, category, currentUser?.skills, normalizedUserLocation, onlyMatched, opportunities, province, search]);
+  }, [audience, category, closingBefore, currentUser?.skills, normalizedUserLocation, onlyMatched, opportunities, province, search]);
 
   return (
     <div className="space-y-6">
@@ -92,6 +96,14 @@ export function OpportunitiesBrowser({
           />
         </label>
         <div className="mt-4 flex flex-wrap gap-2 border-t border-forest/10 pt-4" role="group" aria-label="Opportunity types">
+          <button
+            type="button"
+            aria-pressed={category === "all"}
+            onClick={() => setCategory("all")}
+            className={`rounded-full px-3 py-2 text-sm font-medium ${category === "all" ? "bg-forest text-white" : "bg-cream2 text-ink hover:bg-goldSoft"}`}
+          >
+            All types
+          </button>
           {opportunityTypes.map((type) => (
             <button
               key={type}
@@ -104,7 +116,7 @@ export function OpportunitiesBrowser({
             </button>
           ))}
         </div>
-        <div className="mt-4 grid gap-3 sm:grid-cols-2">
+        <div className="mt-4 grid gap-3 sm:grid-cols-3">
           <label className="text-sm font-medium text-ink">
             Who is this for?
             <select value={audience} onChange={(event) => setAudience(event.target.value)} className="mt-1 w-full rounded-xl border border-inkSoft/20 bg-white px-3 py-3">
@@ -118,6 +130,10 @@ export function OpportunitiesBrowser({
               <option value="">All provinces and national</option>
               {provinces.map((value) => <option key={value} value={value}>{value}</option>)}
             </select>
+          </label>
+          <label className="text-sm font-medium text-ink">
+            Closing on or before
+            <input type="date" value={closingBefore} onChange={(event) => setClosingBefore(event.target.value)} className="mt-1 w-full rounded-xl border border-inkSoft/20 bg-white px-3 py-3" />
           </label>
         </div>
       </div>
@@ -155,8 +171,8 @@ export function OpportunitiesBrowser({
         </div>
       ) : (
         <div className="rounded-[1.75rem] border border-forest/10 bg-white p-8 text-center">
-          <p className="text-lg font-medium text-ink">No {opportunityTypeLabels[category as OpportunityType].toLowerCase()} match these filters.</p>
-          <p className="mt-2 text-sm text-inkSoft">Try changing the province or audience filter.</p>
+          <p className="text-lg font-medium text-ink">No {category === "all" ? "opportunities" : opportunityTypeLabels[category as OpportunityType].toLowerCase()} match these filters.</p>
+          <p className="mt-2 text-sm text-inkSoft">Try changing the province, closing date, or audience filter.</p>
         </div>
       )}
     </div>

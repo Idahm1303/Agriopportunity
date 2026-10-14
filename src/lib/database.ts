@@ -1,6 +1,7 @@
 import { Prisma } from "@prisma/client";
 
 import { addAuditEntry } from "@/lib/audit";
+import { sendNewOpportunityMatchEmail } from "@/lib/email";
 import { prisma, withDatabaseRetry } from "@/lib/prisma";
 import type { Application, Opportunity, OpportunityType, Role, User } from "@/lib/mock-data";
 
@@ -400,6 +401,150 @@ export async function getProfileRecommendations(userId: string, activeRole?: Rol
     update: { matchScore: opportunity.matchScore ?? 0, matchReason: opportunity.matchReason ?? "" },
   })));
   return ranked;
+}
+
+export async function notifySmmeUsersAboutOpportunity(opportunityId: string) {
+  const opportunity = await getOpportunityById(opportunityId);
+  if (!opportunity || !["smme_programme", "funding_call"].includes(opportunity.type ?? opportunity.category)) {
+    return { notified: 0, emailed: 0, emailWarning: null as string | null };
+  }
+
+  const audience = opportunity.targetAudience ?? [];
+  const recipients = await prisma.user.findMany({
+    where: {
+      roles: { some: { role: { in: ["SMME", "COOPERATIVE"] } } },
+      smmeProfile: { isNot: null },
+    },
+    include: {
+      roles: { select: { role: true } },
+      smmeProfile: true,
+      smmeDiagnostics: { orderBy: { createdAt: "desc" }, take: 1 },
+    },
+  });
+  const matching: Array<{
+    userId: string;
+    email: string;
+    businessName: string;
+    matchReason: string;
+  }> = [];
+
+  for (const recipient of recipients) {
+    const profile = recipient.smmeProfile;
+    if (!profile) continue;
+    const hasSmmeRole = recipient.roles.some(({ role }) => role === "SMME");
+    const hasCooperativeRole = recipient.roles.some(({ role }) => role === "COOPERATIVE");
+    const matchRole: Role | undefined = !audience.length
+      ? (hasSmmeRole ? "SMME" : hasCooperativeRole ? "COOPERATIVE" : undefined)
+      : audience.includes("smme") && hasSmmeRole
+        ? "SMME"
+        : audience.includes("cooperative") && hasCooperativeRole
+          ? "COOPERATIVE"
+          : undefined;
+    if (!matchRole) continue;
+
+    const diagnosticGaps = recipient.smmeDiagnostics[0]?.gaps;
+    const gaps = Array.isArray(diagnosticGaps)
+      ? diagnosticGaps.flatMap((gap) =>
+          typeof gap === "object" && gap !== null && "recommendedTypes" in gap && Array.isArray(gap.recommendedTypes)
+            ? gap.recommendedTypes.filter((type): type is string => typeof type === "string")
+            : [],
+        )
+      : [];
+    const user = { ...mapUser(recipient), role: matchRole };
+    const result = profileRecommendation(opportunity, user, {
+      province: profile.province,
+      sector: profile.sectorFocus,
+      stage: profile.fundingStage,
+      needs: profile.needs,
+      gaps,
+    });
+    if (result.score <= 20) continue;
+    matching.push({
+      userId: recipient.id,
+      email: recipient.email,
+      businessName: profile.businessName ?? recipient.organizationName ?? recipient.fullName,
+      matchReason: result.reason,
+    });
+  }
+
+  const notificationRows = await Promise.all(matching.map(async (recipient) => {
+    const notification = await prisma.opportunityNotification.upsert({
+      where: { userId_opportunityId: { userId: recipient.userId, opportunityId } },
+      create: {
+        userId: recipient.userId,
+        opportunityId,
+        matchReason: recipient.matchReason,
+      },
+      update: {
+        matchReason: recipient.matchReason,
+        readAt: null,
+        emailSentAt: null,
+        createdAt: new Date(),
+      },
+      select: { id: true, emailSentAt: true },
+    });
+    return { ...recipient, notificationId: notification.id, alreadyEmailed: Boolean(notification.emailSentAt) };
+  }));
+
+  let emailed = 0;
+  let emailFailures = 0;
+  const emailFailureReasons = new Set<string>();
+  const pendingEmails = notificationRows.filter((recipient) => !recipient.alreadyEmailed);
+  for (let index = 0; index < pendingEmails.length; index += 5) {
+    const results = await Promise.all(pendingEmails.slice(index, index + 5).map(async (recipient) => {
+      try {
+        const result = await sendNewOpportunityMatchEmail({
+          recipient: recipient.email,
+          businessName: recipient.businessName,
+          opportunityTitle: opportunity.title,
+          opportunityId,
+          matchReason: recipient.matchReason,
+        });
+        if (!result.sent) return { sent: false, reason: result.reason };
+        await prisma.opportunityNotification.update({
+          where: { id: recipient.notificationId },
+          data: { emailSentAt: new Date() },
+        });
+        return { sent: true, reason: null };
+      } catch (error) {
+        const reason = error instanceof Error ? error.message : "Email delivery failed.";
+        console.error(`Unable to send an SMME opportunity alert for notification ${recipient.notificationId}: ${reason}`);
+        return { sent: false, reason };
+      }
+    }));
+    emailed += results.filter((result) => result.sent).length;
+    emailFailures += results.filter((result) => !result.sent).length;
+    results.forEach((result) => {
+      if (result.reason) emailFailureReasons.add(result.reason);
+    });
+  }
+
+  return {
+    notified: notificationRows.length,
+    emailed,
+    emailWarning: emailFailures
+      ? `${emailFailures} alert email${emailFailures === 1 ? "" : "s"} could not be sent. ${Array.from(emailFailureReasons).join("; ")}`
+      : null,
+  };
+}
+
+export async function getOpportunityNotifications(userId: string) {
+  return prisma.opportunityNotification.findMany({
+    where: { userId },
+    include: {
+      opportunity: { select: { id: true, title: true, type: true, closingDate: true, province: true } },
+    },
+    orderBy: { createdAt: "desc" },
+    take: 10,
+  });
+}
+
+export async function markOpportunityNotificationRead(notificationId: string, userId: string) {
+  const result = await prisma.opportunityNotification.updateMany({
+    where: { id: notificationId, userId },
+    data: { readAt: new Date() },
+  });
+  return result.count > 0;
 }
 
 export async function getSupportProgrammeRecommendations(userId: string, gaps: string[]) {

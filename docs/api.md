@@ -143,5 +143,7 @@ The OpenAPI 3.1 contract is maintained in [`openapi.yaml`](./openapi.yaml).
 - `PATCH /api/v1/profile/roles` persists the active role for future sign-ins. The requested role must already be granted.
 - `GET/POST /api/v1/profile-documents` supports farmer/SMME ID, registration, funding and certificate files. Files are uploaded with server-side AES-256 encryption. OCR data is stored as unconfirmed, ID numbers are masked in responses, and the applicant must explicitly confirm review. OCR never submits an application.
 - `GET /api/v1/opportunities?type=...&audience=...&province=...` filters visible listings. National opportunities are included when a province is selected.
+- Opening or reopening an SMME programme or funding call creates an in-app notification and attempts an email alert for each matching SMME/co-operative business profile. Notification emails use the existing `RESEND_API_KEY` and `EMAIL_FROM` configuration; in-app alerts remain available if email delivery fails.
+- `POST /api/v1/notifications/[id]/read` marks one of the signed-in SMME/co-operative user's alerts as read.
 
 Opportunity types are `job`, `learnership`, `bursary`, `funding`, `internship`, `graduate_placement`, `skills_programme`, `artisan`, `mentorship`, `research`, `smme_programme`, and `funding_call`. The original `category` field remains available for compatibility with existing clients.

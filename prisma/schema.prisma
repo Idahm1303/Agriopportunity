@@ -35,6 +35,7 @@ model User {
   smmeProfile             SmmeProfile?
   smmeDiagnostics         SmmeDiagnostic[]
   recommendations         OpportunityRecommendation[]
+  opportunityNotifications OpportunityNotification[]
 }
 
 enum Role {
@@ -152,6 +153,7 @@ model Opportunity {
   reports            Report[]
   savedBy            SavedOpportunity[]
   recommendations    OpportunityRecommendation[]
+  notifications       OpportunityNotification[]
 }
 
 model OpportunityRecommendation {
@@ -166,6 +168,22 @@ model OpportunityRecommendation {
   @@id([userId, opportunityId])
   @@index([userId, matchScore])
   @@map("opportunity_recommendations")
+}
+
+model OpportunityNotification {
+  id            String      @id @default(uuid())
+  userId        String
+  opportunityId String
+  matchReason   String
+  readAt        DateTime?
+  emailSentAt   DateTime?
+  createdAt     DateTime    @default(now())
+  user          User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+  opportunity   Opportunity @relation(fields: [opportunityId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, opportunityId])
+  @@index([userId, createdAt])
+  @@map("opportunity_notifications")
 }
 
 model Application {

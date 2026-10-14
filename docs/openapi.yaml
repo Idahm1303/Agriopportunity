@@ -189,6 +189,19 @@ paths:
       responses:
         "200": { description: Ranked opportunities with matchScore and matchReason }
         "401": { description: Authentication required }
+  /notifications/{id}/read:
+    post:
+      summary: Mark an SMME/co-operative opportunity alert as read
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema: { type: string }
+      responses:
+        "200": { description: Notification marked as read }
+        "401": { description: Authentication required }
+        "403": { description: SMME or co-operative role required }
+        "404": { description: Notification not found }
   /applications:
     get:
       summary: Get the current user's applications or review applicants as a provider
