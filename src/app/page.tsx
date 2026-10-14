@@ -1,5 +1,6 @@
 import Link from "next/link";
 import Image from "next/image";
+import { connection } from "next/server";
 
 import { Hero } from "@/components/Hero";
 import { countLearners } from "@/lib/database";
@@ -20,6 +21,7 @@ const featureCards = [
 ];
 
 export default async function Home() {
+  await connection();
   const learnerCount = await countLearners();
 
   return (
