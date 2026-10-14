@@ -71,7 +71,7 @@ export function SiteHeader() {
       <div className="mx-auto flex max-w-6xl flex-wrap items-center justify-between gap-3 px-4 py-4 sm:px-6 lg:px-8">
         <Link href="/" className="font-display text-2xl tracking-tight">AgriOpportunity</Link>
         <nav aria-label="Main navigation" className="flex flex-wrap items-center gap-2 text-sm font-medium">
-          <Link href="/opportunities" className="rounded-full border border-goldSoft/70 px-3 py-2 text-white/90 hover:bg-leaf">Opportunities</Link>
+          {pathname !== "/" ? <Link href="/opportunities" className="rounded-full border border-goldSoft/70 px-3 py-2 text-white/90 hover:bg-leaf">Opportunities</Link> : null}
           {status === "authenticated" ? (
             <>
               <Link href={dashboardFor(activeRole)} className="rounded-full border border-goldSoft/70 px-3 py-2 text-white/90 hover:bg-leaf">Dashboard</Link>
