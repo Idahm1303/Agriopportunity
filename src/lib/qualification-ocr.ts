@@ -28,6 +28,7 @@ export async function extractQualification(file: File): Promise<QualificationExt
     );
   }
 
+  const baseUrl = (process.env.OPENAI_BASE_URL ?? "https://api.openai.com/v1").replace(/\/+$/, "");
   const base64 = Buffer.from(await file.arrayBuffer()).toString("base64");
   const documentContent =
     file.type === "application/pdf"
@@ -40,7 +41,7 @@ export async function extractQualification(file: File): Promise<QualificationExt
           type: "input_image",
           image_url: `data:${file.type};base64,${base64}`,
         };
-  const response = await fetch("https://api.openai.com/v1/responses", {
+  const response = await fetch(`${baseUrl}/responses`, {
     method: "POST",
     headers: {
       Authorization: `Bearer ${apiKey}`,
