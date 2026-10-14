@@ -27,7 +27,6 @@ export const authOptions: NextAuthOptions = {
       credentials: {
         email: { label: "Email", type: "email" },
         password: { label: "Password", type: "password" },
-        organizationName: { label: "Organisation", type: "text" },
       },
       async authorize(credentials) {
         if (!credentials?.email || !credentials?.password) {
@@ -45,10 +44,6 @@ export const authOptions: NextAuthOptions = {
         );
 
         if (!validPassword) {
-          return null;
-        }
-
-        if (user.role === "EMPLOYER" && String(credentials.organizationName ?? "").trim().toLowerCase() !== (user.organizationName ?? "").trim().toLowerCase()) {
           return null;
         }
 

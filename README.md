@@ -60,7 +60,7 @@ Applications require a qualification document upload. The server sends PDF, JPG,
 
 Uploaded documents are stored in the configured private Neon Object Storage bucket using its S3-compatible endpoint. Provision the bucket and credentials with Neon Object Storage, then add the `AWS_S3_BUCKET`, `AWS_ENDPOINT_URL_S3`, `AWS_REGION`, `AWS_ACCESS_KEY_ID`, and `AWS_SECRET_ACCESS_KEY` variables to `.env.local` before testing uploads.
 
-The repository declares the private bucket in `neon.ts`. After linking this project to the target Neon project and branch, run `neon deploy` (or `neon env pull`) to provision the bucket and retrieve the S3-compatible environment variables. Do not commit those credentials.
+The repository declares the private bucket in `neon.ts`. After linking this project to the target Neon project and branch, run `neon deploy` to provision the bucket, then `neon env pull` to retrieve its S3-compatible environment variables into `.env.local`. Restart the development server after updating environment variables. Do not commit those credentials.
 
 ## Available routes
 

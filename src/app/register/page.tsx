@@ -3,16 +3,19 @@
 import Link from "next/link";
 import { signIn } from "next-auth/react";
 import { useRouter } from "next/navigation";
-import { useState } from "react";
+import { use, useState } from "react";
 
-export default function RegisterPage() {
+export default function RegisterPage({ searchParams }: { searchParams: Promise<{ role?: string | string[] }> }) {
   const router = useRouter();
+  const query = use(searchParams);
+  const requestedRole = Array.isArray(query.role) ? query.role[0] : query.role;
   const [form, setForm] = useState({
     fullName: "",
     email: "",
     password: "",
-    role: "LEARNER",
+    role: requestedRole === "EMPLOYER" ? "EMPLOYER" : "LEARNER",
     organizationName: "",
+    phoneNumber: "",
     location: "",
   });
   const [error, setError] = useState<string | null>(null);
@@ -34,6 +37,7 @@ export default function RegisterPage() {
           fullName: form.fullName.trim(),
           email: form.email.trim().toLowerCase(),
           organizationName: form.organizationName.trim(),
+          phoneNumber: form.phoneNumber.trim(),
           location: form.location.trim(),
           skills: form.role === "LEARNER" ? ["Crop science", "Farm operations"] : [],
           qualifications: form.role === "LEARNER" ? ["National Diploma"] : [],
@@ -48,12 +52,11 @@ export default function RegisterPage() {
       const login = await signIn("credentials", {
         email: form.email.trim().toLowerCase(),
         password: form.password,
-        organizationName: form.organizationName.trim(),
         redirect: false,
       });
 
       if (login?.error) {
-        router.push(`/login?email=${encodeURIComponent(form.email.trim().toLowerCase())}&organizationName=${encodeURIComponent(form.organizationName.trim())}`);
+        router.push("/login");
       } else {
         router.push(form.role === "EMPLOYER" ? "/employer/dashboard" : "/profile");
       }
@@ -100,7 +103,7 @@ export default function RegisterPage() {
           </div>
 
           <div>
-            <label className="mb-2 block text-sm font-medium text-ink" htmlFor="fullName">{form.role === "EMPLOYER" ? "Your name" : "Full name"}</label>
+            <label className="mb-2 block text-sm font-medium text-ink" htmlFor="fullName">{form.role === "EMPLOYER" ? "Name and surname" : "Full name"}</label>
             <input
               id="fullName"
               value={form.fullName}
@@ -162,13 +165,29 @@ export default function RegisterPage() {
             </div>
           ) : null}
 
+          {form.role === "EMPLOYER" ? (
+            <div>
+              <label className="mb-2 block text-sm font-medium text-ink" htmlFor="phoneNumber">Contact number</label>
+              <input
+                id="phoneNumber"
+                type="tel"
+                autoComplete="tel"
+                value={form.phoneNumber}
+                onChange={(event) => setForm({ ...form, phoneNumber: event.target.value })}
+                className="w-full rounded-xl border border-inkSoft/20 bg-cream px-3 py-3 text-base text-ink focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-goldSoft"
+                required
+              />
+            </div>
+          ) : null}
+
           <div>
-            <label className="mb-2 block text-sm font-medium text-ink" htmlFor="location">Location</label>
+            <label className="mb-2 block text-sm font-medium text-ink" htmlFor="location">{form.role === "EMPLOYER" ? "Region / province" : "Location"}</label>
             <input
               id="location"
               value={form.location}
               onChange={(event) => setForm({ ...form, location: event.target.value })}
               className="w-full rounded-xl border border-inkSoft/20 bg-cream px-3 py-3 text-base text-ink focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-goldSoft"
+              required={form.role === "EMPLOYER"}
             />
           </div>
 

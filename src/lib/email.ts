@@ -81,16 +81,31 @@ export function sendApplicationConfirmation(input: {
 }
 
 export async function sendApplicationUpdateEmail(input: ApplicationEmailInput) {
+  const outcome = input.placed
+    ? "You have been selected for placement."
+    : input.status === "shortlisted"
+      ? "You have been shortlisted for the next stage."
+      : input.status === "unsuccessful"
+        ? "Your application was not successful on this occasion."
+        : `Your application status is now ${input.status.replaceAll("_", " ")}.`;
+
   return sendResendEmail({
     recipient: input.recipient,
-    subject: `Application update: ${input.opportunityTitle}`,
+    subject: input.placed
+      ? `Placement update: ${input.opportunityTitle}`
+      : input.status === "shortlisted"
+        ? `You have been shortlisted: ${input.opportunityTitle}`
+        : input.status === "unsuccessful"
+          ? `Application outcome: ${input.opportunityTitle}`
+          : `Application update: ${input.opportunityTitle}`,
     text: [
-        `Hello ${input.applicantName},`,
-        "",
-        `Your application for ${input.opportunityTitle} has been updated.`,
-        `Status: ${input.status}`,
-        `Verified: ${input.verified ? "Yes" : "No"}`,
-        `Placement: ${input.placed ? "Placed" : "Not placed"}`,
+      `Hello ${input.applicantName},`,
+      "",
+      `There is an update to your application for ${input.opportunityTitle}.`,
+      outcome,
+      `Status: ${input.status}`,
+      `Verified: ${input.verified ? "Yes" : "No"}`,
+      `Placement: ${input.placed ? "Placed" : "Not placed"}`,
     ].join("\n"),
   });
 }

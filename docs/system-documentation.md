@@ -7,9 +7,9 @@
 - **FR-3:** An applicant shall search and filter visible opportunities by keyword and category.
 - **FR-4:** An applicant shall view opportunity details and a rules-based skills match score.
 - **FR-5:** An applicant shall submit an application before an opportunity closes.
-- **FR-6:** An employer shall create, publish, close, and review opportunities.
+- **FR-6:** An employer shall register with their name, email, contact number, region, and organisation, then create, publish, close, and review opportunities.
 - **FR-7:** Employers and administrators shall review application status, qualification evidence, and match results.
-- **FR-8:** An employer shall update an application through review, shortlist, rejection, or placement states.
+- **FR-8:** An employer shall update applications through review, shortlist, rejection, or placement states, with email notifications attempted and delivery failures reported to the employer.
 - **FR-9:** The system shall record auditable actions for applications, listings, reports, moderation, and verification.
 - **FR-10:** Role-based access control shall restrict applicant, employer, and administrator actions.
 - **FR-11:** An applicant shall upload a qualification document in PDF, JPG, or PNG format.

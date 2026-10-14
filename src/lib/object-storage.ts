@@ -10,7 +10,7 @@ function getStorageClient() {
 
   if (!endpoint || !region || !accessKeyId || !secretAccessKey) {
     throw new Error(
-      "Neon Object Storage is not configured. Set AWS_ENDPOINT_URL_S3, AWS_REGION, AWS_ACCESS_KEY_ID, AWS_SECRET_ACCESS_KEY, and AWS_S3_BUCKET.",
+      "Neon Object Storage is not configured. Set AWS_ENDPOINT_URL_S3, AWS_REGION, AWS_ACCESS_KEY_ID, and AWS_SECRET_ACCESS_KEY in .env.local. AWS_S3_BUCKET is optional and defaults to agriopportunity-documents.",
     );
   }
 

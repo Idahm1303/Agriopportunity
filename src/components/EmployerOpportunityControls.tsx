@@ -74,12 +74,32 @@ export function EmployerOpportunityControls({ opportunityId, status, title, desc
     }
   };
 
+  const handleAction = (action: string) => {
+    if (action === "edit") {
+      setIsEditing(true);
+    } else if (action === "cancel-edit") {
+      setIsEditing(false);
+    } else if (action === "open" || action === "closed") {
+      void updateStatus();
+    }
+  };
+
   return (
     <div className="flex flex-wrap items-center gap-2">
-      {canEdit ? <button type="button" onClick={() => setIsEditing((current) => !current)} className="rounded-lg border border-forest/20 bg-white px-3 py-2 text-sm font-medium text-forest">{isEditing ? "Cancel edit" : "Edit listing"}</button> : null}
-      <button type="button" disabled={isSaving} onClick={updateStatus} className="rounded-lg bg-gold px-3 py-2 text-sm font-medium text-ink disabled:opacity-60">
-        {isSaving ? "Saving..." : status === "open" ? "Close listing" : "Publish listing"}
-      </button>
+      <label className="sr-only" htmlFor={`opportunity-action-${opportunityId}`}>Opportunity actions</label>
+      <select
+        id={`opportunity-action-${opportunityId}`}
+        value=""
+        disabled={isSaving}
+        onChange={(event) => handleAction(event.target.value)}
+        className="rounded-lg border border-forest/20 bg-white px-3 py-2 text-sm font-medium text-forest disabled:opacity-60"
+      >
+        <option value="" disabled>{isSaving ? "Saving..." : "Listing actions"}</option>
+        {canEdit ? <option value={isEditing ? "cancel-edit" : "edit"}>{isEditing ? "Cancel editing" : "Edit listing"}</option> : null}
+        {status === "open"
+          ? <option value="closed">Close listing</option>
+          : <option value="open">Publish listing</option>}
+      </select>
       {message ? <span className="basis-full text-xs text-inkSoft" role="status">{message}</span> : null}
       {isEditing ? (
         <form onSubmit={saveDetails} className="mt-3 grid w-full gap-3 rounded-xl border border-forest/10 bg-white p-4 sm:grid-cols-2">

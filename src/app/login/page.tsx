@@ -7,7 +7,7 @@ import { useState } from "react";
 
 export default function LoginPage() {
   const router = useRouter();
-  const [form, setForm] = useState({ email: "learner@agriopportunity.co.za", password: "Password123!", organizationName: "" });
+  const [form, setForm] = useState({ email: "", password: "" });
   const [error, setError] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
@@ -19,14 +19,13 @@ export default function LoginPage() {
     const result = await signIn("credentials", {
       email: form.email,
       password: form.password,
-      organizationName: form.organizationName,
       redirect: false,
     });
 
     if (result?.error) {
       setError(
         result.error === "CredentialsSignin"
-          ? "Invalid email, password, or organisation name."
+          ? "Invalid email or password."
           : "Unable to sign in right now. Please try again.",
       );
       setIsSubmitting(false);
@@ -49,7 +48,7 @@ export default function LoginPage() {
           <p className="mt-6 text-sm font-semibold uppercase tracking-[0.2em] text-goldSoft">Welcome back</p>
           <h1 className="mt-4 font-display text-4xl text-cream lg:text-5xl">Log in to continue</h1>
           <p className="mt-5 max-w-md text-base leading-7 text-cream/90">
-            Access your learner dashboard, track applications, and discover opportunities that match your skills.
+            Sign in with your email and password to manage employer listings and applicants or track your learner applications.
           </p>
           <div className="mt-8 rounded-2xl border border-white/15 bg-white/5 p-4 backdrop-blur-sm">
             <p className="text-sm text-cream/80">Demo learner access</p>
@@ -88,17 +87,6 @@ export default function LoginPage() {
             />
           </div>
 
-          <div>
-            <label className="mb-2 block text-sm font-medium text-ink" htmlFor="organizationName">Organisation (employers)</label>
-            <input
-              id="organizationName"
-              value={form.organizationName}
-              onChange={(event) => setForm({ ...form, organizationName: event.target.value })}
-              placeholder="Leave blank for learner accounts"
-              className="w-full rounded-xl border border-inkSoft/20 bg-cream px-3 py-3 text-base text-ink focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-goldSoft"
-            />
-          </div>
-
           {error ? <p className="text-sm text-red-700">{error}</p> : null}
 
           <button
@@ -111,6 +99,9 @@ export default function LoginPage() {
 
           <p className="text-sm text-inkSoft">
             Need an account? <Link href="/register" className="font-medium text-forest underline">Register</Link>
+          </p>
+          <p className="text-sm text-inkSoft">
+            Registering an organisation? <Link href="/register?role=EMPLOYER" className="font-medium text-forest underline">Create an employer account</Link>
           </p>
         </form>
       </div>

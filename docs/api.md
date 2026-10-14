@@ -70,7 +70,7 @@ Returns the currently logged in learner's applications, including status history
 
 ### PATCH /api/v1/applications/[id]
 
-Employer/admin updates application status. Allowed values are `submitted`, `under_review`, `shortlisted`, `interview`, `successful`, and `unsuccessful`. Each change is added to application status history and emailed to the learner.
+Employer/admin updates application status. Allowed values are `submitted`, `under_review`, `shortlisted`, `interview`, `successful`, and `unsuccessful`. Each change is added to application status history and an email notification is attempted. If email delivery is unavailable or fails, the response includes an `emailWarning`.
 
 Request body:
 
@@ -95,6 +95,8 @@ Request body:
   "location": "Pretoria"
 }
 ```
+
+Employer registration also requires `organizationName`, `phoneNumber`, and `location` (region/province). Employers sign in with their registered email and password; the organisation name is not a login credential.
 
 ### POST /api/v1/reports
 

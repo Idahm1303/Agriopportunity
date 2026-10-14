@@ -113,6 +113,7 @@ export async function createUser(input: {
   skills?: string[];
   qualifications?: string[];
   organizationName?: string | null;
+  phoneNumber?: string | null;
 }) {
   const user = await withDatabaseRetry(() => prisma.user.create({
     data: {
@@ -121,6 +122,7 @@ export async function createUser(input: {
       role: input.role,
       fullName: input.fullName,
       organizationName: input.organizationName ?? null,
+      phoneNumber: input.phoneNumber || null,
       location: input.location ?? null,
       skills: input.skills ?? [],
       qualifications: input.qualifications ?? [],
@@ -389,7 +391,7 @@ export async function getEmployerApplications(
       opportunity: { select: { title: true, category: true, requiredSkills: true } },
       user: { select: { fullName: true, email: true, skills: true, qualifications: true } },
     },
-    orderBy: [{ matchScore: "desc" }, { createdAt: "desc" }],
+    orderBy: [{ matchScore: { sort: "desc", nulls: "last" } }, { createdAt: "desc" }],
   });
 
   return applications.map((application) => ({

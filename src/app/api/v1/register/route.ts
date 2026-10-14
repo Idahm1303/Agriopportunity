@@ -10,6 +10,7 @@ const registerSchema = z.object({
   password: z.string().min(8, "Password must be at least 8 characters."),
   fullName: z.string().trim().min(2, "Full name is required.").max(120, "Name must be 120 characters or fewer."),
   organizationName: z.string().trim().max(200, "Organisation name must be 200 characters or fewer.").optional(),
+  phoneNumber: z.string().trim().max(30, "Contact number must be 30 characters or fewer.").optional(),
   role: z.enum(["LEARNER", "EMPLOYER"]).default("LEARNER"),
   location: z.string().trim().max(160, "Location must be 160 characters or fewer.").optional(),
   skills: z.array(z.string()).optional(),
@@ -17,6 +18,12 @@ const registerSchema = z.object({
 }).refine((data) => data.role !== "EMPLOYER" || Boolean(data.organizationName && data.organizationName.length >= 2), {
   message: "Enter an organisation name of at least 2 characters.",
   path: ["organizationName"],
+}).refine((data) => data.role !== "EMPLOYER" || Boolean(data.phoneNumber && data.phoneNumber.length >= 7), {
+  message: "Enter a contact number of at least 7 characters.",
+  path: ["phoneNumber"],
+}).refine((data) => data.role !== "EMPLOYER" || Boolean(data.location && data.location.length >= 2), {
+  message: "Enter your region or province.",
+  path: ["location"],
 });
 
 export async function POST(request: Request) {
@@ -45,6 +52,7 @@ export async function POST(request: Request) {
       role: parsed.data.role,
       fullName: parsed.data.fullName,
       organizationName: parsed.data.organizationName,
+      phoneNumber: parsed.data.phoneNumber,
       location: parsed.data.location,
       skills: parsed.data.skills ?? [],
       qualifications: parsed.data.qualifications ?? [],

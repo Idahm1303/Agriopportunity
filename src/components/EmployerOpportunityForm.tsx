@@ -44,10 +44,11 @@ export function EmployerOpportunityForm() {
   return (
     <div>
       <button type="button" onClick={() => setOpen((value) => !value)} className="rounded-full bg-forest px-5 py-3 text-sm font-medium text-cream hover:bg-leaf">
-        {open ? "Close form" : "Create opportunity"}
+        {open ? "Cancel new opportunity" : "Load opportunity"}
       </button>
       {open ? (
-        <form onSubmit={submit} className="mt-5 grid gap-4 rounded-2xl border border-forest/10 bg-cream p-5 md:grid-cols-2">
+        <form onSubmit={submit} aria-label="Create new opportunity" className="mt-5 grid gap-4 rounded-2xl border border-forest/10 bg-cream p-5 md:grid-cols-2">
+          <p className="text-sm text-inkSoft md:col-span-2">Create a new draft here. Edit, publish, or close an existing listing from Your opportunities below.</p>
           <input name="title" placeholder="Opportunity title" required className="rounded-xl border border-inkSoft/20 bg-white px-3 py-3 text-ink" />
           <select name="category" required defaultValue="job" className="rounded-xl border border-inkSoft/20 bg-white px-3 py-3 text-ink">
             <option value="job">Job</option><option value="learnership">Learnership</option><option value="bursary">Bursary</option><option value="funding">Funding</option>
