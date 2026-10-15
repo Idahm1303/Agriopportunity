@@ -41,6 +41,8 @@ DATABASE_URL="postgresql://...-pooler/..."
 DIRECT_URL="postgresql://.../"
 NEXTAUTH_SECRET="your-secret"
 NEXTAUTH_URL="http://localhost:3000"
+GROQ_API_KEY="your-groq-api-key"
+GROQ_MODEL="qwen/qwen3.8-27b"
 OPENAI_API_KEY="your-api-key"
 OPENAI_BASE_URL="https://api.openai.com/v1"
 OPENAI_MODEL="gpt-4o-mini"
@@ -60,7 +62,7 @@ The MVP includes seeded demo data for quick testing:
 - Learner: learner@agriopportunity.co.za / Password123!
 - Employer: employer@agriopportunity.co.za / Password123!
 
-Applications require a qualification document upload. The server sends PDF, JPG, and PNG documents to the configured OpenAI-compatible Responses API for text, qualification, and skill extraction, then scores the extracted skills against the opportunity requirements. Set `OPENAI_BASE_URL` and `OPENAI_MODEL` to use a compatible provider such as Groq. Groq's Responses API supports text and image inputs; PDF `input_file` support is not documented, so PDF extraction may require a provider that accepts PDF inputs. Documents are limited to 10 MB and the demo application store keeps extracted results in memory.
+Applications require a qualification document upload. The server reads PDF, JPG, and PNG documents for text, qualification, and skill extraction, then scores the extracted skills against the opportunity requirements. Profile documents (ID, business registration, funding proof, and certificates) use the same extraction chain. Extraction tries Groq first (`GROQ_API_KEY`), then the OpenAI-compatible Responses API (`OPENAI_API_KEY`, with optional `OPENAI_BASE_URL` and `OPENAI_MODEL`), and falls back to local OCR with Tesseract when no key is set or every provider fails. All API keys are optional; local OCR is less accurate, so its results are flagged for the user to confirm. PDFs with selectable text are read directly and sent to Groq as text; scanned PDFs need a provider that accepts PDF inputs (OpenAI), or can be uploaded as a JPG or PNG photo instead. Documents are limited to 10 MB and the demo application store keeps extracted results in memory.
 
 Uploaded documents are stored in the configured private Neon Object Storage bucket using its S3-compatible endpoint. Provision the bucket and credentials with Neon Object Storage, then add the `AWS_S3_BUCKET`, `AWS_ENDPOINT_URL_S3`, `AWS_REGION`, `AWS_ACCESS_KEY_ID`, and `AWS_SECRET_ACCESS_KEY` variables to `.env.local` before testing uploads.
 

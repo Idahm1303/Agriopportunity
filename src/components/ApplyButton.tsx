@@ -76,7 +76,7 @@ export function ApplyButton({ opportunityId }: { opportunityId: string }) {
       <label className="block text-sm font-medium text-ink" htmlFor="application-qualification">
         Qualification document <span className="font-normal text-inkSoft">(optional)</span>
         <span className="mt-2 block text-xs font-normal text-inkSoft">PDF, JPG, or PNG up to 10 MB</span>
-        <input id="application-qualification" type="file" accept="application/pdf,image/jpeg,image/png" onChange={(event) => setQualificationDocument(event.target.files?.[0] ?? null)} className="mt-2 block w-full rounded-2xl border border-forest/15 bg-white px-3 py-2 text-sm text-ink file:mr-3 file:rounded-full file:border-0 file:bg-cream2 file:px-3 file:py-2 file:text-sm file:font-medium file:text-forest" />
+        <input id="application-qualification" type="file" accept=".pdf,.jpg,.jpeg,.png,application/pdf,image/jpeg,image/png" onChange={(event) => setQualificationDocument(event.target.files?.[0] ?? null)} className="mt-2 block w-full rounded-2xl border border-forest/15 bg-white px-3 py-2 text-sm text-ink file:mr-3 file:rounded-full file:border-0 file:bg-cream2 file:px-3 file:py-2 file:text-sm file:font-medium file:text-forest" />
       </label>
       <button
         type="button"

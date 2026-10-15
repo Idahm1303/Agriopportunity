@@ -3,10 +3,9 @@ import { NextResponse } from "next/server";
 
 import { authOptions } from "@/lib/auth";
 import { createDocument, getProfileDocuments, getUserRoles } from "@/lib/database";
-import { extractProfileDocument } from "@/lib/qualification-ocr";
+import { extractProfileDocument, qualificationDocumentType } from "@/lib/qualification-ocr";
 import { uploadDocument } from "@/lib/object-storage";
 
-const allowedTypes = new Set(["application/pdf", "image/jpeg", "image/png"]);
 const documentTypes = new Set(["id_document", "business_registration", "funding_proof", "certificate"]);
 const maximumSize = 10 * 1024 * 1024;
 
@@ -62,7 +61,7 @@ export async function POST(request: Request) {
     const file = form.get("document");
     if (!documentTypes.has(documentType)) return NextResponse.json({ error: "Choose an ID, business registration, funding, or certificate document." }, { status: 400 });
     if (!(file instanceof File) || !file.size) return NextResponse.json({ error: "Choose a document to upload." }, { status: 400 });
-    if (!allowedTypes.has(file.type)) return NextResponse.json({ error: "Upload a PDF, JPG, or PNG document." }, { status: 400 });
+    if (!qualificationDocumentType(file)) return NextResponse.json({ error: "Upload a PDF, JPG, or PNG document." }, { status: 400 });
     if (file.size > maximumSize) return NextResponse.json({ error: "The document must be smaller than 10 MB." }, { status: 400 });
 
     const typedDocument = documentType as "id_document" | "business_registration" | "funding_proof" | "certificate";

@@ -15,6 +15,12 @@ export default function ProfilePage() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const uploadInputRef = useRef<HTMLInputElement>(null);
   const cameraInputRef = useRef<HTMLInputElement>(null);
+  const [scanResult, setScanResult] = useState<{
+    warning?: string;
+    skills: string[];
+    qualifications: string[];
+    requiresConfirmation: boolean;
+  } | null>(null);
 
   useEffect(() => {
     fetch("/api/v1/profile")
@@ -41,6 +47,19 @@ export default function ProfilePage() {
       const response = await fetch("/api/v1/profile", { method: "POST", body: formData });
       const payload = await response.json();
       if (!response.ok) throw new Error(payload.error ?? "Unable to save your profile.");
+      const extractedSkills: string[] = payload.extractedSkills ?? [];
+      const extractedQualifications: string[] = payload.extractedQualifications ?? [];
+      if (payload.warning || extractedSkills.length || extractedQualifications.length) {
+        setSkills((current) => Array.from(new Set([...current, ...extractedSkills])));
+        setScanResult({
+          warning: payload.warning,
+          skills: extractedSkills,
+          qualifications: extractedQualifications,
+          requiresConfirmation: Boolean(payload.requiresConfirmation),
+        });
+        setIsSubmitting(false);
+        return;
+      }
       router.push(qualificationDocument ? "/opportunities?category=all&matched=true" : "/opportunities");
       router.refresh();
     } catch (submitError) {
@@ -66,6 +85,46 @@ export default function ProfilePage() {
   const toggleSkill = (skill: string) => {
     setSkills((current) => current.includes(skill) ? current.filter((item) => item !== skill) : [...current, skill]);
   };
+
+  if (scanResult) {
+    return (
+      <main className="mx-auto max-w-4xl px-4 py-12 sm:px-6 lg:px-8">
+        <div className="space-y-6 rounded-[2rem] bg-white p-6 shadow-[0_18px_50px_rgba(36,76,53,0.08)] ring-1 ring-forest/10 sm:p-8">
+          <h1 className="font-display text-3xl text-forest">Profile saved</h1>
+          {scanResult.warning ? (
+            <p className="rounded-xl bg-amber-50 p-3 text-sm text-amber-800">{scanResult.warning}</p>
+          ) : null}
+          {scanResult.requiresConfirmation ? (
+            <p className="rounded-xl bg-amber-50 p-3 text-sm text-amber-800">The scan was not fully confident. Please check the details below and update your profile if anything is wrong.</p>
+          ) : null}
+          {scanResult.qualifications.length ? (
+            <div>
+              <h2 className="text-sm font-medium text-ink">Qualifications found in your document</h2>
+              <ul className="mt-2 list-disc pl-5 text-sm text-inkSoft">
+                {scanResult.qualifications.map((item) => <li key={item}>{item}</li>)}
+              </ul>
+            </div>
+          ) : null}
+          {scanResult.skills.length ? (
+            <div>
+              <h2 className="text-sm font-medium text-ink">Skills added from your document</h2>
+              <ul className="mt-2 list-disc pl-5 text-sm text-inkSoft">
+                {scanResult.skills.map((item) => <li key={item}>{item}</li>)}
+              </ul>
+            </div>
+          ) : null}
+          <div className="flex flex-wrap gap-3">
+            <button type="button" onClick={() => { router.push("/opportunities?category=all&matched=true"); router.refresh(); }} className="rounded-2xl bg-forest px-5 py-3 font-semibold text-cream hover:bg-leaf">
+              See matched opportunities
+            </button>
+            <button type="button" onClick={() => setScanResult(null)} className="rounded-2xl border-2 border-forest px-5 py-3 font-semibold text-forest">
+              Edit profile
+            </button>
+          </div>
+        </div>
+      </main>
+    );
+  }
 
   return (
     <main className="mx-auto max-w-4xl px-4 py-12 sm:px-6 lg:px-8">

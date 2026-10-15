@@ -5,7 +5,7 @@ import { z } from "zod";
 import { authOptions } from "@/lib/auth";
 import { createDocument, findUserById, updateUserProfile } from "@/lib/database";
 import { learnerSkillOptions } from "@/lib/agri-options";
-import { extractQualification } from "@/lib/qualification-ocr";
+import { extractQualification, qualificationDocumentType, type ExtractionMethod } from "@/lib/qualification-ocr";
 import { uploadDocument } from "@/lib/object-storage";
 
 const profileSchema = z.object({
@@ -16,8 +16,17 @@ const profileSchema = z.object({
   qualification: z.string().trim(),
 });
 
-const allowedDocumentTypes = new Set(["application/pdf", "image/jpeg", "image/png"]);
 const maximumDocumentSize = 10 * 1024 * 1024;
+
+function uniqueIgnoringCase(values: string[]) {
+  const seen = new Set<string>();
+  return values.filter((value) => {
+    const key = value.trim().toLowerCase();
+    if (!key || seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
+}
 
 export async function POST(request: Request) {
   const session = await getServerSession(authOptions);
@@ -59,29 +68,40 @@ export async function POST(request: Request) {
     let extractedText: string | undefined;
     let extractionConfidence: number | undefined;
     let storageKey: string | undefined;
+    let documentWarning: string | undefined;
+    let extractionMethod: ExtractionMethod | undefined;
+    const hasDocument = document instanceof File && document.size > 0;
 
-    if (document instanceof File && document.size > 0) {
-      if (!allowedDocumentTypes.has(document.type)) {
+    if (hasDocument) {
+      if (!qualificationDocumentType(document)) {
         return NextResponse.json({ error: "Upload a PDF, JPG, or PNG document." }, { status: 400 });
       }
       if (document.size > maximumDocumentSize) {
         return NextResponse.json({ error: "The document must be smaller than 10 MB." }, { status: 400 });
       }
 
-      storageKey = await uploadDocument({ file: document, userId, documentType: "qualification" });
-      const extraction = await extractQualification(document);
-      extractedText = extraction.extractedText;
-      extractedSkills = extraction.skills;
-      extractedQualifications = extraction.qualifications;
-      extractionConfidence = extraction.confidence;
+      try {
+        storageKey = await uploadDocument({ file: document, userId, documentType: "qualification" });
+      } catch (uploadError) {
+        console.error("Qualification document upload failed", uploadError);
+        documentWarning = "Your profile was saved, but we could not store your document.";
+      }
+
+      try {
+        const extraction = await extractQualification(document);
+        extractedText = extraction.extractedText;
+        extractedSkills = extraction.skills;
+        extractedQualifications = extraction.qualifications;
+        extractionConfidence = extraction.confidence;
+        extractionMethod = extraction.method;
+      } catch (extractionError) {
+        console.error("Qualification document processing failed", extractionError);
+        documentWarning = "Your profile was saved, but we could not scan your document. Your manually entered details were used instead.";
+      }
     }
 
-    const profileSkills = Array.from(new Set([...parsed.data.skills, ...extractedSkills]));
-    const qualifications = Array.from(new Set([
-      ...(parsed.data.qualification ? [parsed.data.qualification] : []),
-      ...currentUser.qualifications,
-      ...extractedQualifications,
-    ]));
+    const profileSkills = uniqueIgnoringCase([...parsed.data.skills, ...extractedSkills]);
+    const qualifications = uniqueIgnoringCase([parsed.data.qualification, ...currentUser.qualifications, ...extractedQualifications]);
 
     await updateUserProfile({
       id: userId,
@@ -92,7 +112,7 @@ export async function POST(request: Request) {
       qualifications,
     });
 
-    if (document instanceof File && document.size > 0) {
+    if (hasDocument && (storageKey || extractedText !== undefined)) {
       await createDocument({
         userId,
         documentType: "qualification",
@@ -106,8 +126,12 @@ export async function POST(request: Request) {
     }
 
     return NextResponse.json({
-      message: document instanceof File && document.size > 0 ? "Profile updated and qualification scanned." : "Profile updated.",
+      message: hasDocument && extractedText !== undefined ? "Profile updated and qualification scanned." : "Profile updated.",
+      warning: documentWarning,
+      extractedSkills,
+      extractedQualifications,
       extractionConfidence,
+      extractionMethod,
       requiresConfirmation: extractionConfidence !== undefined && extractionConfidence < 0.8,
     });
   } catch (error) {

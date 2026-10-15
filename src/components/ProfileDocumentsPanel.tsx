@@ -110,7 +110,7 @@ export function ProfileDocumentsPanel({
           </select>
         </label>
         <label className="text-sm font-medium text-ink">Choose a file
-          <input name="document" type="file" required accept="application/pdf,image/jpeg,image/png" className="mt-1 block w-full rounded-xl border border-inkSoft/20 px-3 py-2 text-xs" />
+          <input name="document" type="file" required accept=".pdf,.jpg,.jpeg,.png,application/pdf,image/jpeg,image/png" className="mt-1 block w-full rounded-xl border border-inkSoft/20 px-3 py-2 text-xs" />
         </label>
         <button type="submit" disabled={isUploading} className="self-end rounded-xl bg-forest px-4 py-3 text-sm font-semibold text-white disabled:opacity-60">{isUploading ? "Reading..." : "Upload and read"}</button>
       </form> : <p className="rounded-xl bg-cream p-4 text-sm text-inkSoft">Save your business profile before uploading documents. You can add them from this page afterward.</p>}

@@ -8,7 +8,7 @@ import { authOptions } from "@/lib/auth";
 import { deliverApplicationEmails } from "@/lib/application-email";
 import { createApplication, createDocument, getEmployerApplications, getUserApplications, getUserGrantApplications } from "@/lib/database";
 import { prisma } from "@/lib/prisma";
-import { extractQualification } from "@/lib/qualification-ocr";
+import { extractQualification, qualificationDocumentType } from "@/lib/qualification-ocr";
 import { uploadDocument } from "@/lib/object-storage";
 import { additionalGrantDocuments, standardGrantDocuments } from "@/lib/grant-application";
 import type { Role } from "@/lib/mock-data";
@@ -17,12 +17,12 @@ const applicationSchema = z.object({
   opportunityId: z.string().min(1, "Opportunity ID is required."),
   coverNote: z.string().trim().min(10, "Write a cover note of at least 10 characters.").max(2000, "Cover notes must be 2,000 characters or fewer."),
 });
-const allowedDocumentTypes = new Set(["application/pdf", "image/jpeg", "image/png"]);
 const allowedCVTypes = new Set([
   "application/pdf",
   "application/msword",
   "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
 ]);
+const allowedGrantDocumentTypes = new Set(["application/pdf", "image/jpeg", "image/png"]);
 const maximumDocumentSize = 10 * 1024 * 1024;
 const grantApplicationSchema = z.object({
   companyName: z.string().trim().min(2).max(200),
@@ -114,7 +114,7 @@ async function submitEmployerGrantApplication(formData: FormData, userId: string
       if (!document.required) continue;
       return NextResponse.json({ error: `Upload the required document: ${document.label}.` }, { status: 400 });
     }
-    if (!allowedDocumentTypes.has(file.type)) {
+    if (!allowedGrantDocumentTypes.has(file.type)) {
       return NextResponse.json({ error: `${document.label} must be a PDF, JPG, or PNG file.` }, { status: 400 });
     }
     if (file.size > maximumDocumentSize) {
@@ -277,7 +277,7 @@ export async function POST(request: Request) {
 
     const qualificationDocument = formData.get("qualificationDocument");
     if (qualificationDocument instanceof File && qualificationDocument.size > 0) {
-      if (!allowedDocumentTypes.has(qualificationDocument.type)) {
+      if (!qualificationDocumentType(qualificationDocument)) {
         return NextResponse.json({ error: "Upload a qualification document as a PDF, JPG, or PNG." }, { status: 400 });
       }
       if (qualificationDocument.size > maximumDocumentSize) {
@@ -294,9 +294,14 @@ export async function POST(request: Request) {
     const qualificationStorageKey = qualificationDocument instanceof File && qualificationDocument.size > 0
       ? await uploadDocument({ file: qualificationDocument, userId, documentType: "qualification", referenceId: parsed.data.opportunityId })
       : null;
-    const extraction = qualificationStorageKey && qualificationDocument instanceof File
-      ? await extractQualification(qualificationDocument)
-      : { extractedText: "", qualifications: [], skills: [], confidence: 0 };
+    let extraction = { extractedText: "", qualifications: [] as string[], skills: [] as string[], confidence: 0 };
+    if (qualificationStorageKey && qualificationDocument instanceof File) {
+      try {
+        extraction = await extractQualification(qualificationDocument);
+      } catch (extractionError) {
+        console.error("Qualification document processing failed", extractionError);
+      }
+    }
 
     const application = await createApplication({
       userId,
