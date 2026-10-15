@@ -4,7 +4,7 @@ import { z } from "zod";
 
 import { addAuditEntry } from "@/lib/audit";
 import { authOptions } from "@/lib/auth";
-import { updateEmployerApplication } from "@/lib/database";
+import { ApplicationClosingDateError, updateEmployerApplication } from "@/lib/database";
 import { sendApplicationUpdateEmail } from "@/lib/email";
 
 const statusSchema = z.object({
@@ -95,6 +95,9 @@ export async function PATCH(
 
     return NextResponse.json({ application: updated, ...(emailResult.sent ? {} : { emailWarning: emailResult.reason }) });
   } catch (error) {
+    if (error instanceof ApplicationClosingDateError) {
+      return NextResponse.json({ error: error.message }, { status: 409 });
+    }
     return NextResponse.json(
       { error: error instanceof Error ? error.message : "Unable to update application status." },
       { status: 500 },

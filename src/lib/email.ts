@@ -82,6 +82,54 @@ export function sendApplicationConfirmation(input: {
   });
 }
 
+export function sendGrantApplicationConfirmation(input: {
+  recipient: string;
+  applicantName: string;
+  opportunityTitle: string;
+  appliedAt: Date;
+}) {
+  return sendResendEmail({
+    recipient: input.recipient,
+    subject: `Grant application received: ${input.opportunityTitle}`,
+    text: [
+      `Hello ${input.applicantName},`,
+      "",
+      `Your company's application for ${input.opportunityTitle} was received on ${input.appliedAt.toLocaleDateString("en-ZA", { dateStyle: "long" })}.`,
+      "You can track the application status and submitted documents from your employer dashboard.",
+    ].join("\n"),
+  });
+}
+
+export function sendGrantApplicationToProvider(input: {
+  recipient: string;
+  applicantName: string;
+  applicantEmail: string;
+  opportunityTitle: string;
+  companyName: string;
+  registrationNumber: string;
+  sdlNumber: string;
+  requestedAmount: string;
+  documentNames: string[];
+}) {
+  return sendResendEmail({
+    recipient: input.recipient,
+    subject: `New grant application: ${input.opportunityTitle}`,
+    text: [
+      `Applicant: ${input.applicantName} (${input.applicantEmail})`,
+      `Company: ${input.companyName}`,
+      `Registration number: ${input.registrationNumber}`,
+      `SDL number: ${input.sdlNumber}`,
+      `Requested amount: ${input.requestedAmount}`,
+      `Grant opportunity: ${input.opportunityTitle}`,
+      "",
+      `Submitted documents (${input.documentNames.length}):`,
+      ...input.documentNames.map((name) => `- ${name}`),
+      "",
+      "Sign in to the employer dashboard to securely review the application and its documents.",
+    ].join("\n"),
+  });
+}
+
 export function sendNewOpportunityMatchEmail(input: {
   recipient: string;
   businessName: string;
@@ -114,9 +162,11 @@ export async function sendApplicationUpdateEmail(input: ApplicationEmailInput) {
     ? "You have been selected for placement."
     : input.status === "shortlisted"
       ? "You have been shortlisted for the next stage."
-      : input.status === "unsuccessful"
-        ? "Your application was not successful on this occasion."
-        : `Your application status is now ${input.status.replaceAll("_", " ")}.`;
+      : input.status === "rejected"
+        ? "Your application has not been selected for this opportunity."
+        : input.status === "unsuccessful"
+          ? "Your application was not successful on this occasion."
+          : `Your application status is now ${input.status.replaceAll("_", " ")}.`;
 
   return sendResendEmail({
     recipient: input.recipient,
@@ -124,7 +174,7 @@ export async function sendApplicationUpdateEmail(input: ApplicationEmailInput) {
       ? `Placement update: ${input.opportunityTitle}`
       : input.status === "shortlisted"
         ? `You have been shortlisted: ${input.opportunityTitle}`
-        : input.status === "unsuccessful"
+        : input.status === "rejected" || input.status === "unsuccessful"
           ? `Application outcome: ${input.opportunityTitle}`
           : `Application update: ${input.opportunityTitle}`,
     text: [

@@ -3,8 +3,9 @@ import { getServerSession } from "next-auth";
 import { redirect } from "next/navigation";
 
 import { authOptions } from "@/lib/auth";
-import { findUserById, getOpportunityNotifications, getProfileRecommendations, getSavedOpportunities, getUserApplications, getUserProfiles } from "@/lib/database";
+import { findUserById, getFarmBusinessOnboardingStatus, getOpportunityNotifications, getProfileRecommendations, getSavedOpportunities, getUserApplications, getUserProfiles, isLearnerProfileComplete } from "@/lib/database";
 import { ApplicationEmailRetry } from "@/components/ApplicationEmailRetry";
+import { FarmBusinessActions } from "@/components/FarmBusinessActions";
 import { SmmeNotifications } from "@/components/SmmeNotifications";
 import { opportunityTypeLabels, opportunityTypes } from "@/lib/agri-options";
 
@@ -18,6 +19,10 @@ export default async function DashboardPage() {
 
   if (role === "FARMER" || role === "SMME" || role === "COOPERATIVE") {
     const isFarmer = role === "FARMER";
+    const isBusinessSupportSeeker = role === "SMME" || role === "COOPERATIVE";
+    const profileHref = isFarmer ? "/profile/farmer" : "/profile/smme";
+    const onboarding = await getFarmBusinessOnboardingStatus(userId, role as "FARMER" | "SMME" | "COOPERATIVE");
+    if (!onboarding.profileComplete) redirect(profileHref);
     const [user, profiles, applications, matches, notifications] = await Promise.all([
       findUserById(userId),
       getUserProfiles(userId),
@@ -26,24 +31,39 @@ export default async function DashboardPage() {
       getOpportunityNotifications(userId),
     ]);
     if (!user) redirect("/login?callbackUrl=%2Fdashboard");
-    const profileHref = isFarmer ? "/profile/farmer" : "/profile/smme";
     const profileName = isFarmer ? profiles.farmer?.farmName ?? user.fullName : profiles.smme?.businessName ?? user.organizationName ?? user.fullName;
-    const matchCount = matches.filter((match) => match.matchScore > 0).length;
 
     return (
       <main className="mx-auto max-w-6xl space-y-6 px-4 py-10 sm:px-6 lg:px-8">
         <div className="flex flex-wrap items-end justify-between gap-4">
           <div>
-            <p className="text-sm font-semibold uppercase tracking-[0.18em] text-leaf">{role === "FARMER" ? "Farmer dashboard" : "SMME dashboard"}</p>
+            <p className="text-sm font-semibold uppercase tracking-[0.18em] text-leaf">{role === "FARMER" ? "Farmer dashboard" : role === "COOPERATIVE" ? "Co-operative dashboard" : "SMME dashboard"}</p>
             <h1 className="mt-2 font-display text-4xl text-forest">Welcome, {profileName}</h1>
-            <p className="mt-2 text-inkSoft">{matchCount} opportunities match your {isFarmer ? "farm" : "business"}.</p>
           </div>
           <div className="flex flex-wrap gap-3">
-            <Link href={profileHref} className="rounded-xl border border-forest/20 px-4 py-3 text-sm font-semibold text-forest">Update your profile</Link>
+            {!isFarmer ? <Link href={profileHref} className="rounded-xl border border-forest/20 px-4 py-3 text-sm font-semibold text-forest">Update your profile</Link> : null}
             {!isFarmer ? <Link href="/profile/smme#diagnostic-title" className="rounded-xl bg-forest px-4 py-3 text-sm font-semibold text-white">Take readiness check</Link> : null}
-            <Link href="/opportunities?matched=true&category=all" className="rounded-xl bg-gold px-4 py-3 text-sm font-semibold text-forest">Browse matches</Link>
           </div>
         </div>
+
+        {isFarmer ? (
+          <section className="rounded-[2rem] bg-white p-6 shadow-sm ring-1 ring-forest/10">
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              <div>
+                <p className="text-sm font-semibold uppercase tracking-[0.16em] text-leaf">Farm profile</p>
+                <h2 className="mt-1 font-display text-2xl text-forest">{profiles.farmer?.farmName ?? "Your farm profile"}</h2>
+              </div>
+              <Link href={profileHref} className="rounded-xl border border-forest/20 px-4 py-2.5 text-sm font-semibold text-forest">Update profile</Link>
+            </div>
+            <dl className="mt-5 grid gap-4 text-sm sm:grid-cols-2 lg:grid-cols-3">
+              <div><dt className="font-medium text-ink">Location and province</dt><dd className="text-inkSoft">{[profiles.farmer?.district, profiles.farmer?.province].filter(Boolean).join(", ") || "Add your location"}</dd></div>
+              <div><dt className="font-medium text-ink">What you farm</dt><dd className="text-inkSoft">{[profiles.farmer?.farmingType, ...(profiles.farmer?.mainCommodities ?? [])].filter(Boolean).join(", ") || "Add your farming focus"}</dd></div>
+              <div><dt className="font-medium text-ink">Farm size</dt><dd className="text-inkSoft">{profiles.farmer?.farmSizeHectares != null ? `${profiles.farmer.farmSizeHectares} hectares` : "Not specified"}</dd></div>
+              <div><dt className="font-medium text-ink">Farm stage</dt><dd className="text-inkSoft">{profiles.farmer?.farmerStage ?? "Not specified"}</dd></div>
+              <div><dt className="font-medium text-ink">Contact details</dt><dd className="text-inkSoft">{[user.phoneNumber, user.email].filter(Boolean).join(" · ") || "Add your contact details"}</dd></div>
+            </dl>
+          </section>
+        ) : null}
 
         {profiles.diagnostic && !isFarmer ? (
           <section className="rounded-2xl bg-white p-5 ring-1 ring-forest/10">
@@ -57,24 +77,32 @@ export default async function DashboardPage() {
           language={user.preferredLanguage}
         />
 
+        <section className={`grid gap-4 ${isBusinessSupportSeeker ? "md:grid-cols-2" : "md:grid-cols-3"}`}>
+          <Link href="/opportunities?category=funding" className="rounded-2xl bg-white p-5 shadow-sm ring-1 ring-forest/10 transition hover:bg-cream">
+            <h2 className="font-display text-xl text-forest">{isBusinessSupportSeeker ? "Find funding and grants" : "Discover funding and support"}</h2>
+            <p className="mt-2 text-sm text-inkSoft">{isBusinessSupportSeeker ? "Explore funding opportunities and grant calls for your agricultural business." : "Explore grants, funding calls, and programmes recommended for your farm or business."}</p>
+            <span className="mt-4 inline-flex font-semibold text-forest underline">Explore funding</span>
+          </Link>
+          <Link href={isBusinessSupportSeeker ? "/opportunities?category=smme_programme" : "/opportunities"} className="rounded-2xl bg-white p-5 shadow-sm ring-1 ring-forest/10 transition hover:bg-cream">
+            <h2 className="font-display text-xl text-forest">{isBusinessSupportSeeker ? "Find business support programmes" : "Explore opportunities"}</h2>
+            <p className="mt-2 text-sm text-inkSoft">{isBusinessSupportSeeker ? "Browse support programmes matched to your business profile and readiness check." : "Browse available programmes and opportunities that fit your profile."}</p>
+            <span className="mt-4 inline-flex font-semibold text-forest underline">{isBusinessSupportSeeker ? "Explore support programmes" : "Browse opportunities"}</span>
+          </Link>
+          {!isBusinessSupportSeeker ? <FarmBusinessActions /> : null}
+        </section>
+
         <section className="grid gap-6 lg:grid-cols-[0.8fr_1.2fr]">
           <div className="space-y-6">
-            {isFarmer ? (
+            {!isFarmer ? (
               <section className="rounded-2xl bg-white p-5 ring-1 ring-forest/10">
-                <h2 className="font-display text-xl text-forest">Children and farm workers</h2>
-                <p className="mt-2 text-sm text-inkSoft">They can join as learners with their own account to find training and track applications.</p>
-                <Link href="/register?role=LEARNER" className="mt-3 inline-flex min-h-11 items-center rounded-xl border border-forest/20 px-4 py-2 text-sm font-semibold text-forest">Create a learner account</Link>
-                <p className="mt-3 text-sm text-inkSoft">If you hire workers, use Active role in the top bar to add or switch to Employer without creating another account.</p>
+                <h2 className="font-display text-xl text-forest">Your profile</h2>
+                <dl className="mt-4 space-y-3 text-sm text-inkSoft">
+                  <div><dt className="font-medium text-ink">Province</dt><dd>{profiles.smme?.province ?? user.province ?? "Not set"}</dd></div>
+                  <div><dt className="font-medium text-ink">Business focus</dt><dd>{profiles.smme?.sectorFocus ?? "Add your business details"}</dd></div>
+                  <div><dt className="font-medium text-ink">Support needed</dt><dd>{profiles.smme?.needs.join(", ") || "Add your support needs"}</dd></div>
+                </dl>
               </section>
             ) : null}
-            <section className="rounded-2xl bg-white p-5 ring-1 ring-forest/10">
-              <h2 className="font-display text-xl text-forest">Your profile</h2>
-              <dl className="mt-4 space-y-3 text-sm text-inkSoft">
-                <div><dt className="font-medium text-ink">Province</dt><dd>{isFarmer ? profiles.farmer?.province : profiles.smme?.province ?? user.province ?? "Not set"}</dd></div>
-                <div><dt className="font-medium text-ink">{isFarmer ? "Farm focus" : "Business focus"}</dt><dd>{isFarmer ? [profiles.farmer?.farmingType, ...(profiles.farmer?.mainCommodities ?? [])].filter(Boolean).join(", ") || "Add your farm details" : profiles.smme?.sectorFocus ?? "Add your business details"}</dd></div>
-                <div><dt className="font-medium text-ink">Support needed</dt><dd>{(isFarmer ? profiles.farmer?.needs : profiles.smme?.needs)?.join(", ") || "Add your support needs"}</dd></div>
-              </dl>
-            </section>
             <section className="rounded-2xl bg-white p-5 ring-1 ring-forest/10">
               <h2 className="font-display text-xl text-forest">Your applications ({applications.length})</h2>
               <div className="mt-3 space-y-3">
@@ -90,7 +118,7 @@ export default async function DashboardPage() {
           </div>
 
           <section className="rounded-2xl bg-white p-5 ring-1 ring-forest/10">
-            <h2 className="font-display text-2xl text-forest">{isFarmer ? "Opportunities that may suit your farm" : "Recommended opportunities"}</h2>
+            <h2 className="font-display text-2xl text-forest">{isFarmer ? "Opportunities that may suit your farm" : isBusinessSupportSeeker ? "Recommended support and funding" : "Recommended opportunities"}</h2>
             {isFarmer ? <p className="mt-1 text-sm text-inkSoft">Each match explains why it may fit. Open a listing to check its eligibility details before applying.</p> : null}
             <div className="mt-4 space-y-3">
               {matches.filter((match) => match.matchScore > 0).slice(0, 7).map((match) => (
@@ -100,9 +128,10 @@ export default async function DashboardPage() {
                     <span className="rounded-full bg-forest px-2 py-1 text-xs font-semibold text-white">{match.matchScore}% match</span>
                   </div>
                   <p className="mt-1 text-sm text-inkSoft">{match.matchReason}</p>
+                  <Link href={`/opportunities/${match.id}#apply`} className="mt-3 inline-flex min-h-10 items-center justify-center rounded-lg bg-forest px-3 py-2 text-sm font-semibold text-white hover:bg-leaf">Apply now</Link>
                 </article>
               ))}
-              {!matchCount ? <p className="text-sm text-inkSoft">Complete your profile to receive more relevant matches.</p> : null}
+              {!matches.some((match) => match.matchScore > 0) ? <p className="text-sm text-inkSoft">Complete your profile to receive more relevant matches.</p> : null}
             </div>
           </section>
         </section>
@@ -110,6 +139,7 @@ export default async function DashboardPage() {
     );
   }
   if (role !== "LEARNER") redirect(role === "ADMIN" ? "/admin/dashboard" : "/employer/dashboard");
+  if (!await isLearnerProfileComplete(userId)) redirect("/profile");
 
   const [learner, applications, savedOpportunities, opportunities] = await Promise.all([
     findUserById(userId),
@@ -173,6 +203,26 @@ export default async function DashboardPage() {
               Browse {opportunityTypeLabels[type]}
             </Link>
           ))}
+        </div>
+      </section>
+
+      <section className="mb-6 rounded-2xl bg-white p-5 ring-1 ring-forest/10">
+        <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
+          <div>
+            <h2 className="font-display text-xl text-forest">Recommended opportunities</h2>
+            <p className="mt-1 text-sm text-inkSoft">Explore roles and programmes matched to your skills and qualifications.</p>
+          </div>
+          <Link href="/opportunities?matched=true&category=all" className="text-sm font-semibold text-forest underline">Explore all matches</Link>
+        </div>
+        <div className="grid gap-3 sm:grid-cols-2">
+          {opportunities.filter((opportunity) => (opportunity.matchScore ?? 0) > 0).slice(0, 4).map((opportunity) => (
+            <article key={opportunity.id} className="rounded-xl bg-cream p-4">
+              <Link href={`/opportunities/${opportunity.id}`} className="font-semibold text-forest underline">{opportunity.title}</Link>
+              <p className="mt-1 text-sm text-inkSoft">{opportunity.matchReason}</p>
+              <Link href={`/opportunities/${opportunity.id}#apply`} className="mt-3 inline-flex min-h-10 items-center justify-center rounded-lg bg-forest px-3 py-2 text-sm font-semibold text-white hover:bg-leaf">Apply now</Link>
+            </article>
+          ))}
+          {!opportunities.some((opportunity) => (opportunity.matchScore ?? 0) > 0) ? <p className="text-sm text-inkSoft">Complete your profile to receive recommendations.</p> : null}
         </div>
       </section>
 

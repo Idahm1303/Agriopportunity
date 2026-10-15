@@ -66,6 +66,7 @@ export type Application = {
   matchScore?: number | null;
   qualificationDocumentName?: string | null;
   coverNote?: string | null;
+  applicationData?: unknown;
   cvUrl?: string | null;
   emailError?: string | null;
   updatedAt?: string;

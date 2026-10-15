@@ -36,6 +36,7 @@ Response:
 ### POST /api/v1/opportunities
 
 Creates a new opportunity. Employer/admin only.
+An opportunity closing date is required; applications close at the end of the selected date.
 
 Request body:
 
@@ -62,11 +63,13 @@ Fetches the details of a single opportunity.
 
 Learners submit an application as `multipart/form-data` with `opportunityId`, a 10-2,000 character `coverNote`, a CV file (`cv`, PDF/DOC/DOCX up to 10 MB), and an optional `qualificationDocument` (PDF/JPG/PNG up to 10 MB). The application is saved before email delivery is attempted. The system emails the CV and application details to the opportunity's `applicationEmail`, and sends a confirmation to the learner. If delivery fails, the saved application response includes `emailDelivery.complete: false` and can be retried from `POST /api/v1/applications/[id]/retry-email`.
 
-Applications are rejected if the applicant has already applied or the opportunity is closed/expired. Learners, farmers, SMMEs and co-operatives use the same application and tracking pipeline. A failed email does not remove the application.
+Employers may use the same endpoint to apply to `funding` and `funding_call` opportunities. Grant submissions require company registration and SDL numbers, company address, province, contact details, requested amount, motivation, and supporting documents: CIPC registration, SARS tax-compliance status, SDL/levy evidence, a recent bank confirmation letter, WSP/ATR submission confirmation, company profile, latest financial statements or management accounts, and proposal with itemised budget. B-BBEE evidence is requested where applicable. Any call-specific documents configured in `eligibilityCriteria.requiredDocuments` are also required. Grant files are private and can be reviewed by the applicant and the opportunity publisher using `GET /api/v1/applications/[id]/documents/[documentId]`; do not put bank account numbers in form fields.
+
+Applications are rejected if the applicant has already applied or the opportunity is closed/expired. Learners, farmers, SMMEs, co-operatives and employers applying to grants use the same application and tracking pipeline. A failed email does not remove the application.
 
 ### GET /api/v1/applications
 
-Returns the currently logged in learner's applications, including status history and email-delivery state.
+Returns applications for the current applicant, or received applications for the current employer/provider/admin, including status history and email-delivery state. Employer responses also include the logged-in employer's own `submittedGrantApplications`.
 
 ### PATCH /api/v1/applications/[id]
 
@@ -96,7 +99,9 @@ Request body:
 }
 ```
 
-Employer registration also requires `organizationName` and `phoneNumber`; new clients should send `province` and may send `townDistrict`. Legacy clients may continue sending `location`. Farmer, SMME and co-operative registration require `province`. All roles can select a preferred language. Registration returns the shared `user.id` identifier.
+Employer registration also requires `organizationName`, `phoneNumber`, and at least one business document uploaded as PDF, JPG, or PNG (maximum 10 MB per file). Employer registrations submit multipart form data with a JSON `registration` field and one or more `businessDocuments` fields; files are stored in encrypted object storage and linked to the new account. New clients should send `province` and may send `townDistrict`. Legacy clients may continue sending `location`. Farmer, SMME and co-operative registration require `province`. All roles can select a preferred language. Registration returns the shared `user.id` identifier.
+
+Creating or editing an opportunity requires a closing date. Once that date has passed, the employer dashboard enables **Shortlist** and **Reject** actions for each applicant. Both update application history and attempt an email notification to the applicant; email delivery failures are reported by the API.
 
 ### POST /api/v1/reports
 
@@ -128,7 +133,9 @@ Administrator verification changes an employer to `pending`, `verified`, or `rej
 
 ### OCR document response fields
 
-Profile and application OCR workflows store document metadata and return `extractionConfidence`. Clients should ask the applicant to confirm extracted values when `extractionConfidence` is below `0.8`.
+Learners must complete their profile before browsing opportunities: provide a contact number, residential address and location, select at least one learner skill, and upload a qualification PDF/image or take a photo (up to 10 MB). Submitting the profile runs OCR, saves extracted qualifications and skills, and then opens matched opportunities across all types. The existing learner skill options are shared from `src/lib/agri-options.ts`. Profile and application OCR workflows store document metadata and return `extractionConfidence`. Clients should ask the applicant to confirm extracted values when `extractionConfidence` is below `0.8`.
+
+Application submission attempts confirmation email delivery to the applicant and notification email delivery to the opportunity contact. If delivery is unavailable or fails, the application remains saved and email delivery can be retried from the learner dashboard. Learners can track application status and history from **My applications** on that dashboard.
 
 ## Farmer, SMME and integration endpoints
 
@@ -136,8 +143,10 @@ The OpenAPI 3.1 contract is maintained in [`openapi.yaml`](./openapi.yaml).
 
 - `PUT /api/v1/profiles/farmer` stores the farmer's farm type, commodities, stage, tenure and support needs.
 - `PUT /api/v1/profiles/smme` stores SMME/co-operative details and turnover band only (not exact turnover).
+- New farmer, SMME, and co-operative registrations go directly to profile setup. A complete farm/business and contact profile is required before `/dashboard` and authenticated opportunity browsing are available. Farmer document uploads are optional. SMME/co-operative users can upload business documents after saving their profile; these documents do not gate dashboard access. Profile saves update the account contact number and location; uploaded files are processed for OCR suggestions, not treated as authoritative document verification.
 - `POST /api/v1/smme-diagnostics` accepts eight integer answers from 0 to 3, calculates and stores the score server-side, and returns ranked gaps.
 - `GET /api/v1/matches` returns ranked opportunities with `matchScore` and a plain-language `matchReason`.
+- SMME and co-operative recommendations are limited to agricultural business-support programmes, funding opportunities, and funding calls. Their dashboard is focused on discovering and applying for support; the opportunity-posting action is reserved for farmer profiles that choose to switch to the employer role.
 - `POST /api/v1/recommendations/support-programmes` accepts supported diagnostic gap keys/labels. A signed-in SMME/co-operative may request matches for their own shared user ID. AgriSMME service-to-service access may use a configured `AGRISMME_API_TOKEN` bearer token and the target SMME `userId`.
 - `POST /api/v1/profile/roles` adds a role grant to the signed-in identity. The header can then switch the active role; it does not create another account.
 - `PATCH /api/v1/profile/roles` persists the active role for future sign-ins. The requested role must already be granted.

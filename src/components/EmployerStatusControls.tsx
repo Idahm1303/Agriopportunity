@@ -1,16 +1,18 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 
 export function EmployerStatusControls({
   applicationId,
   initialStatus,
+  closingDate,
   initialVerified = false,
   initialPlaced = false,
 }: {
   applicationId: string;
   initialStatus: string;
+  closingDate?: string | null;
   initialVerified?: boolean;
   initialPlaced?: boolean;
 }) {
@@ -18,10 +20,23 @@ export function EmployerStatusControls({
   const [status, setStatus] = useState(initialStatus);
   const [verified, setVerified] = useState(initialVerified);
   const [placed, setPlaced] = useState(initialPlaced);
+  const [isClosingDatePassed, setIsClosingDatePassed] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
   const [isSaving, setIsSaving] = useState(false);
 
-  const runAction = async (body: Record<string, boolean>) => {
+  useEffect(() => {
+    const updateClosingDateState = () => {
+      setIsClosingDatePassed(Boolean(closingDate && new Date(closingDate).getTime() <= Date.now()));
+    };
+    const initialTimeout = window.setTimeout(updateClosingDateState, 0);
+    const interval = window.setInterval(updateClosingDateState, 60_000);
+    return () => {
+      window.clearTimeout(initialTimeout);
+      window.clearInterval(interval);
+    };
+  }, [closingDate]);
+
+  const runAction = async (body: { verify?: boolean; place?: boolean }) => {
     setIsSaving(true);
     setMessage(null);
     try {
@@ -77,55 +92,36 @@ export function EmployerStatusControls({
     }
   };
 
-  const handleSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
-    event.preventDefault();
-    await saveStatus(status);
-  };
+  if (!isClosingDatePassed) {
+    return (
+      <div className="flex flex-col gap-3">
+        <p className="text-sm text-inkSoft">
+          {closingDate
+            ? "Shortlisting and rejection will be available after the closing date."
+            : "A closing date is required before shortlisting or rejection is available."}
+        </p>
+        <div className="flex flex-wrap items-center gap-3">
+          <button type="button" disabled={isSaving || verified} onClick={() => runAction({ verify: true })} className="rounded-full border border-forest/20 px-4 py-2 text-sm font-medium text-forest hover:bg-cream2 disabled:opacity-50">
+            {verified ? "Verified" : "Verify"}
+          </button>
+          <button type="button" disabled={isSaving || placed} onClick={() => runAction({ place: true })} className="rounded-full bg-leaf px-4 py-2 text-sm font-medium text-white hover:bg-leafLight disabled:opacity-50">
+            {placed ? "Placed" : "Place candidate"}
+          </button>
+          {message ? <span role="status" className="text-sm text-inkSoft">{message}</span> : null}
+        </div>
+      </div>
+    );
+  }
 
   return (
-    <form onSubmit={handleSubmit} className="flex flex-col gap-3 sm:flex-row sm:items-center">
-      <label htmlFor={`status-${applicationId}`} className="sr-only">
-        Update application status
-      </label>
-      <select
-        id={`status-${applicationId}`}
-        value={status}
-        onChange={(event) => setStatus(event.target.value)}
-        className="rounded-lg border border-inkSoft/30 bg-white px-3 py-2 text-sm text-ink focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-goldSoft"
-      >
-        <option value="submitted">Submitted</option>
-        <option value="under_review">Under review</option>
-        <option value="shortlisted">Shortlisted</option>
-        <option value="interview">Interview</option>
-        <option value="accepted">Accepted</option>
-        <option value="rejected">Rejected</option>
-        <option value="successful">Successful</option>
-        <option value="unsuccessful">Unsuccessful</option>
-      </select>
-
-      <button
-        type="submit"
-        disabled={isSaving}
-        className="rounded-full bg-gold px-4 py-2 text-sm font-medium text-ink transition hover:bg-goldSoft focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-goldSoft"
-      >
-        {isSaving ? "Saving..." : "Update"}
+    <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
+      <button type="button" disabled={isSaving || status === "shortlisted"} onClick={() => saveStatus("shortlisted")} className="rounded-lg bg-forest px-4 py-2 text-sm font-semibold text-white disabled:opacity-50">
+        {isSaving ? "Saving..." : status === "shortlisted" ? "Shortlisted" : "Shortlist"}
       </button>
-
-      <button type="button" disabled={isSaving} onClick={() => saveStatus("shortlisted")} className="rounded-lg border border-forest/20 bg-white px-3 py-2 text-sm font-medium text-forest disabled:opacity-50">
-        Shortlist
+      <button type="button" disabled={isSaving || status === "rejected"} onClick={() => saveStatus("rejected")} className="rounded-lg border border-red-200 bg-white px-4 py-2 text-sm font-semibold text-red-700 disabled:opacity-50">
+        {isSaving ? "Saving..." : status === "rejected" ? "Rejected" : "Reject"}
       </button>
-      <button type="button" disabled={isSaving} onClick={() => saveStatus("rejected")} className="rounded-lg border border-red-200 bg-white px-3 py-2 text-sm font-medium text-red-700 disabled:opacity-50">
-        Reject
-      </button>
-
-      <button type="button" disabled={isSaving || verified} onClick={() => runAction({ verify: true })} className="rounded-full border border-forest/20 px-4 py-2 text-sm font-medium text-forest hover:bg-cream2 disabled:opacity-50">
-        {verified ? "Verified" : "Verify"}
-      </button>
-      <button type="button" disabled={isSaving || placed} onClick={() => runAction({ place: true })} className="rounded-full bg-leaf px-4 py-2 text-sm font-medium text-white hover:bg-leafLight disabled:opacity-50">
-        {placed ? "Placed" : "Place candidate"}
-      </button>
-
-      {message ? <span className="text-sm text-inkSoft">{message}</span> : null}
-    </form>
+      {message ? <span role="status" className="text-sm text-inkSoft">{message}</span> : null}
+    </div>
   );
 }

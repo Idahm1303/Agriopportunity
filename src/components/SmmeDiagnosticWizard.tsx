@@ -73,6 +73,7 @@ export function SmmeDiagnosticWizard() {
                 <li key={recommendation.id} className="rounded-xl bg-cream p-3">
                   <Link href={`/opportunities/${recommendation.id}`} className="font-medium text-forest underline">{recommendation.title}</Link>
                   {recommendation.matchReason ? <p className="mt-1 text-sm text-inkSoft">{recommendation.matchReason}</p> : null}
+                  <Link href={`/opportunities/${recommendation.id}#apply`} className="mt-2 inline-flex min-h-9 items-center justify-center rounded-lg bg-forest px-3 py-1.5 text-xs font-semibold text-white hover:bg-leaf">Apply now</Link>
                 </li>
               ))}
             </ul>

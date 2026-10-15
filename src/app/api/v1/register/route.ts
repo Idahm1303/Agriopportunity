@@ -5,6 +5,10 @@ import { z } from "zod";
 
 import { createUser, findUserByEmail } from "@/lib/database";
 import { languages, provinces } from "@/lib/agri-options";
+import { uploadDocument } from "@/lib/object-storage";
+
+const allowedBusinessDocumentTypes = new Set(["application/pdf", "image/jpeg", "image/png"]);
+const maximumBusinessDocumentSize = 10 * 1024 * 1024;
 
 const registerSchema = z.object({
   email: z.email("Please provide a valid email address.").trim().toLowerCase(),
@@ -36,10 +40,29 @@ const registerSchema = z.object({
 export async function POST(request: Request) {
   try {
     let body: unknown;
-    try {
-      body = await request.json();
-    } catch {
-      return NextResponse.json({ error: "Provide valid registration details." }, { status: 400 });
+    let businessDocuments: File[] = [];
+    if (request.headers.get("content-type")?.includes("multipart/form-data")) {
+      const formData = await request.formData();
+      const registration = formData.get("registration");
+      if (typeof registration !== "string") {
+        return NextResponse.json({ error: "Provide valid registration details." }, { status: 400 });
+      }
+      try {
+        body = JSON.parse(registration);
+      } catch {
+        return NextResponse.json({ error: "Provide valid registration details." }, { status: 400 });
+      }
+      const uploadedValues = formData.getAll("businessDocuments");
+      if (uploadedValues.some((value) => !(value instanceof File))) {
+        return NextResponse.json({ error: "Upload valid business document files." }, { status: 400 });
+      }
+      businessDocuments = uploadedValues.filter((value): value is File => value instanceof File && value.size > 0);
+    } else {
+      try {
+        body = await request.json();
+      } catch {
+        return NextResponse.json({ error: "Provide valid registration details." }, { status: 400 });
+      }
     }
     const parsed = registerSchema.safeParse(body);
 
@@ -50,6 +73,21 @@ export async function POST(request: Request) {
       );
     }
 
+    if (parsed.data.role === "EMPLOYER" && !businessDocuments.length) {
+      return NextResponse.json({ error: "Upload at least one business document to register as an employer." }, { status: 400 });
+    }
+    if (parsed.data.role !== "EMPLOYER" && businessDocuments.length) {
+      return NextResponse.json({ error: "Business documents can only be uploaded when registering as an employer." }, { status: 400 });
+    }
+    for (const document of businessDocuments) {
+      if (!allowedBusinessDocumentTypes.has(document.type)) {
+        return NextResponse.json({ error: "Business documents must be PDF, JPG, or PNG files." }, { status: 400 });
+      }
+      if (document.size > maximumBusinessDocumentSize) {
+        return NextResponse.json({ error: "Each business document must be smaller than 10 MB." }, { status: 400 });
+      }
+    }
+
     if (await findUserByEmail(parsed.data.email)) {
       return NextResponse.json(
         { error: "An account with this email already exists." },
@@ -58,7 +96,22 @@ export async function POST(request: Request) {
     }
 
     const passwordHash = await hash(parsed.data.password, 10);
+    const userId = crypto.randomUUID();
+    const storedBusinessDocuments = [];
+    for (const document of businessDocuments) {
+      const storageUrl = await uploadDocument({
+        file: document,
+        userId,
+        documentType: "business_registration",
+      });
+      storedBusinessDocuments.push({
+        documentType: "business_registration",
+        fileName: document.name,
+        storageUrl,
+      });
+    }
     const user = await createUser({
+      id: userId,
       email: parsed.data.email,
       passwordHash,
       role: parsed.data.role,
@@ -78,6 +131,7 @@ export async function POST(request: Request) {
         : undefined,
       skills: parsed.data.skills ?? [],
       qualifications: parsed.data.qualifications ?? [],
+      documents: storedBusinessDocuments,
     });
 
     return NextResponse.json(

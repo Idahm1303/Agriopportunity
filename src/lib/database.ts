@@ -5,6 +5,8 @@ import { sendNewOpportunityMatchEmail } from "@/lib/email";
 import { prisma, withDatabaseRetry } from "@/lib/prisma";
 import type { Application, Opportunity, OpportunityType, Role, User } from "@/lib/mock-data";
 
+const smmeSupportOpportunityTypes = ["smme_programme", "funding", "funding_call"];
+
 function mapUser(user: Prisma.UserGetPayload<object>): User {
   return {
     id: user.id,
@@ -57,6 +59,7 @@ function mapApplication(application: Prisma.ApplicationGetPayload<object>): Appl
     status: application.status,
     matchScore: application.matchScore,
     coverNote: application.coverNote,
+    applicationData: application.applicationData,
     cvUrl: application.cvUrl,
     emailError: application.emailError,
     updatedAt: application.updatedAt?.toISOString() ?? application.createdAt.toISOString(),
@@ -108,6 +111,60 @@ export async function findUserByEmail(email: string) {
 export async function findUserById(id: string) {
   const user = await prisma.user.findUnique({ where: { id } });
   return user ? mapUser(user) : undefined;
+}
+
+export async function isLearnerProfileComplete(userId: string) {
+  const user = await prisma.user.findUnique({
+    where: { id: userId },
+    select: { phoneNumber: true, address: true, location: true, skills: true },
+  });
+  if (!user || !user.phoneNumber?.trim() || !user.address?.trim() || !user.location?.trim() || !user.skills.length) {
+    return false;
+  }
+
+  return Boolean(await prisma.document.findFirst({
+    where: { userId, documentType: "qualification", opportunityId: null, applicationId: null },
+    select: { id: true },
+  }));
+}
+
+export async function getFarmBusinessOnboardingStatus(userId: string, role: Role) {
+  const [user, profiles, qualifyingDocument] = await Promise.all([
+    prisma.user.findUnique({ where: { id: userId }, select: { phoneNumber: true, location: true } }),
+    getUserProfiles(userId),
+    prisma.document.findFirst({
+      where: {
+        userId,
+        opportunityId: null,
+        applicationId: null,
+        documentType: { in: ["id_document", "business_registration", "certificate"] },
+      },
+      select: { id: true },
+    }),
+  ]);
+  if (!user) return { profileComplete: false, hasRequiredDocument: false, complete: false };
+
+  const profileComplete = role === "FARMER"
+    ? Boolean(
+        profiles.farmer?.farmName?.trim() &&
+        profiles.farmer.province &&
+        profiles.farmer.district?.trim() &&
+        profiles.farmer.farmingType &&
+        profiles.farmer.mainCommodities.length &&
+        profiles.farmer.farmerStage &&
+        user.phoneNumber?.trim() &&
+        user.location?.trim(),
+      )
+    : Boolean(
+        profiles.smme?.businessName?.trim() &&
+        profiles.smme.province &&
+        profiles.smme.sectorFocus?.trim() &&
+        profiles.smme.fundingStage &&
+        user.phoneNumber?.trim() &&
+        user.location?.trim(),
+      );
+  const hasRequiredDocument = Boolean(qualifyingDocument);
+  return { profileComplete, hasRequiredDocument, complete: profileComplete && hasRequiredDocument };
 }
 
 export async function getUserRoles(userId: string): Promise<Role[]> {
@@ -166,6 +223,7 @@ export async function countFundingPartners() {
 }
 
 export async function createUser(input: {
+  id?: string;
   email: string;
   passwordHash: string;
   role: Role;
@@ -179,9 +237,11 @@ export async function createUser(input: {
   preferredLanguage?: string;
   farmerProfile?: { province: string };
   smmeProfile?: { province: string; businessName?: string | null; entityType?: string };
+  documents?: { documentType: string; fileName: string; storageUrl: string }[];
 }) {
   const user = await withDatabaseRetry(() => prisma.user.create({
     data: {
+      id: input.id,
       email: input.email.toLowerCase(),
       passwordHash: input.passwordHash,
       role: input.role,
@@ -194,6 +254,13 @@ export async function createUser(input: {
       skills: input.skills ?? [],
       qualifications: input.qualifications ?? [],
       roles: { create: { role: input.role } },
+      ...(input.documents?.length
+        ? {
+            documents: {
+              create: input.documents,
+            },
+          }
+        : {}),
       ...(input.farmerProfile ? {
         farmerProfile: {
           create: { province: input.farmerProfile.province, mainCommodities: [], needs: [], hasRegisteredBusiness: false },
@@ -369,6 +436,9 @@ export async function getProfileRecommendations(userId: string, activeRole?: Rol
   if (!user) return [];
   const roles = await getUserRoles(userId);
   const matchRole = activeRole ?? (user.role as Role);
+  const visibleOpportunities = matchRole === "SMME" || matchRole === "COOPERATIVE"
+    ? opportunities.filter((opportunity) => smmeSupportOpportunityTypes.includes(opportunity.type ?? opportunity.category))
+    : opportunities;
   const profile = matchRole === "FARMER" && profiles.farmer
     ? {
         province: profiles.farmer.province,
@@ -390,7 +460,7 @@ export async function getProfileRecommendations(userId: string, activeRole?: Rol
         }
       : { province: user.province ?? user.location, needs: [], gaps: [] };
   const userForMatch = { ...user, role: roles.includes(matchRole) ? matchRole : roles[0] ?? user.role } as User;
-  const ranked = opportunities.map((opportunity) => {
+  const ranked = visibleOpportunities.map((opportunity) => {
     const result = profileRecommendation(opportunity, userForMatch, profile);
     return { ...opportunity, matchScore: result.score, matchReason: result.reason };
   }).sort((left, right) => right.matchScore - left.matchScore);
@@ -407,7 +477,7 @@ export async function notifyUsersAboutOpportunity(opportunityId: string) {
   const opportunity = await getOpportunityById(opportunityId);
   const type = opportunity?.type ?? opportunity?.category ?? "";
   const farmerOpportunityTypes = ["skills_programme", "funding_call", "funding", "mentorship", "bursary", "learnership"];
-  const smmeOpportunityTypes = ["smme_programme", "funding_call"];
+  const smmeOpportunityTypes = smmeSupportOpportunityTypes;
   if (!opportunity || (!farmerOpportunityTypes.includes(type) && !smmeOpportunityTypes.includes(type))) {
     return { notified: 0, emailed: 0, emailWarning: null as string | null };
   }
@@ -638,6 +708,17 @@ export async function updateUserProfile(input: {
   return mapUser(user);
 }
 
+export async function updateBusinessContactDetails(input: {
+  userId: string;
+  phoneNumber: string;
+  location: string;
+}) {
+  return prisma.user.update({
+    where: { id: input.userId },
+    data: { phoneNumber: input.phoneNumber, location: input.location },
+  });
+}
+
 export async function createDocument(input: {
   userId: string;
   applicationId?: string;
@@ -785,6 +866,11 @@ export async function listOpportunities(filters?: { type?: OpportunityType; audi
   }));
 }
 
+export async function getEmployerFundingOpportunities() {
+  const opportunities = await listOpportunities();
+  return opportunities.filter((opportunity) => opportunity.type === "funding" || opportunity.type === "funding_call");
+}
+
 export async function getOpportunityById(id: string) {
   const opportunity = await prisma.opportunity.findUnique({
     where: { id },
@@ -901,6 +987,49 @@ export async function getUserApplications(userId: string) {
   }));
 }
 
+export async function getUserGrantApplications(userId: string) {
+  const applications = await prisma.application.findMany({
+    where: { userId, opportunity: { type: { in: ["funding", "funding_call"] } } },
+    include: {
+      opportunity: { select: { title: true, closingDate: true, fundingAmountRange: true } },
+      documents: { select: { id: true, documentType: true, fileName: true } },
+    },
+    orderBy: { createdAt: "desc" },
+  });
+  return applications.map((application) => ({
+    ...mapApplication(application),
+    opportunityTitle: application.opportunity.title,
+    opportunityClosingDate: application.opportunity.closingDate?.toISOString() ?? null,
+    fundingAmountRange: application.opportunity.fundingAmountRange,
+    documents: application.documents,
+  }));
+}
+
+export async function getApplicationDocumentForUser(input: {
+  applicationId: string;
+  documentId: string;
+  userId: string;
+  canManageApplications: boolean;
+  isAdmin: boolean;
+}) {
+  const document = await prisma.document.findFirst({
+    where: {
+      id: input.documentId,
+      applicationId: input.applicationId,
+      application: input.isAdmin
+        ? {}
+        : {
+            OR: [
+              { userId: input.userId },
+              ...(input.canManageApplications ? [{ opportunity: { postedById: input.userId } }] : []),
+            ],
+          },
+    },
+    select: { fileName: true, storageUrl: true },
+  });
+  return document?.storageUrl ? document : null;
+}
+
 export async function getEmployerApplications(
   userId: string,
   isAdmin: boolean,
@@ -919,8 +1048,9 @@ export async function getEmployerApplications(
       ...(normalizedFilters.verification === "unverified" ? { verifiedAt: null } : {}),
     },
     include: {
-      opportunity: { select: { title: true, category: true, requiredSkills: true } },
+      opportunity: { select: { title: true, category: true, requiredSkills: true, closingDate: true } },
       user: { select: { fullName: true, email: true, skills: true, qualifications: true } },
+      documents: { select: { id: true, documentType: true, fileName: true } },
     },
     orderBy: [{ matchScore: { sort: "desc", nulls: "last" } }, { createdAt: "desc" }],
   });
@@ -929,11 +1059,13 @@ export async function getEmployerApplications(
     ...mapApplication(application),
     opportunityTitle: application.opportunity.title,
     opportunityCategory: application.opportunity.category,
+    opportunityClosingDate: application.opportunity.closingDate?.toISOString() ?? null,
     requiredSkills: application.opportunity.requiredSkills,
     applicantName: application.user.fullName,
     applicantEmail: application.user.email,
     applicantSkills: application.user.skills,
     applicantQualifications: application.user.qualifications,
+    documents: application.documents,
     verifiedAt: application.verifiedAt?.toISOString() ?? null,
     placedAt: application.placedAt?.toISOString() ?? null,
   }));
@@ -944,11 +1076,13 @@ export async function createApplication(input: {
   opportunityId: string;
   activeRole?: Role;
   qualificationDocumentName?: string | null;
+  applicationData?: Prisma.InputJsonValue;
   coverNote: string;
-  cvUrl: string;
-  extractedText: string;
-  extractedQualifications: string[];
-  extractedSkills: string[];
+  cvUrl?: string | null;
+  extractedText?: string;
+  extractedQualifications?: string[];
+  extractedSkills?: string[];
+  documents?: Array<{ documentType: string; fileName: string; storageUrl: string }>;
 }) {
   const opportunity = await prisma.opportunity.findUnique({ where: { id: input.opportunityId } });
   const user = await prisma.user.findUnique({ where: { id: input.userId } });
@@ -962,22 +1096,35 @@ export async function createApplication(input: {
   });
   if (existingApplication) return null;
 
-  const applicationSkills = Array.from(new Set([...user.skills, ...input.extractedSkills]));
+  const applicationSkills = Array.from(new Set([...user.skills, ...(input.extractedSkills ?? [])]));
   const { matchedSkills, score } = calculateMatch(opportunity.requiredSkills, applicationSkills);
-  const profileMatches = await getProfileRecommendations(input.userId, input.activeRole ?? user.role as Role);
+  const profileMatches = input.activeRole === "EMPLOYER"
+    ? []
+    : await getProfileRecommendations(input.userId, input.activeRole ?? user.role as Role);
   const profileMatchScore = profileMatches.find((match) => match.id === opportunity.id)?.matchScore;
   const application = await prisma.application.create({
     data: {
       userId: input.userId,
       opportunityId: input.opportunityId,
       coverNote: input.coverNote,
-      cvUrl: input.cvUrl,
+      cvUrl: input.cvUrl ?? null,
+      applicationData: input.applicationData,
       matchScore: profileMatchScore ?? score,
       qualificationDocumentName: input.qualificationDocumentName ?? null,
-      extractedText: input.extractedText,
-      extractedQualifications: input.extractedQualifications,
-      extractedSkills: input.extractedSkills,
+      extractedText: input.extractedText ?? "",
+      extractedQualifications: input.extractedQualifications ?? [],
+      extractedSkills: input.extractedSkills ?? [],
       matchedSkills,
+      ...(input.documents?.length
+        ? {
+            documents: {
+              create: input.documents.map((document) => ({
+                ...document,
+                user: { connect: { id: input.userId } },
+              })),
+            },
+          }
+        : {}),
       statusHistory: { create: { status: "submitted", changedBy: input.userId } },
     },
   });
@@ -1000,6 +1147,13 @@ export async function getMatchScoreForOpportunity(userId: string, opportunityId:
   return matches.find((opportunity) => opportunity.id === opportunityId)?.matchScore ?? 0;
 }
 
+export class ApplicationClosingDateError extends Error {
+  constructor() {
+    super("Shortlisting or rejecting applicants is available after the opportunity closing date.");
+    this.name = "ApplicationClosingDateError";
+  }
+}
+
 export async function updateEmployerApplication(input: {
   appId: string;
   employerId: string;
@@ -1010,8 +1164,13 @@ export async function updateEmployerApplication(input: {
 }) {
   const application = await prisma.application.findFirst({
     where: { id: input.appId, ...(input.isAdmin ? {} : { opportunity: { postedById: input.employerId } }) },
+    include: { opportunity: { select: { closingDate: true } } },
   });
   if (!application) return null;
+  if (input.status && ["shortlisted", "rejected"].includes(input.status) &&
+    (!application.opportunity.closingDate || application.opportunity.closingDate > new Date())) {
+    throw new ApplicationClosingDateError();
+  }
 
   const nextStatus = input.place ? "successful" : input.status;
   return prisma.$transaction(async (transaction) => {

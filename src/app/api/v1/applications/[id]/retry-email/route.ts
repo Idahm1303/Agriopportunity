@@ -7,7 +7,7 @@ import { deliverApplicationEmails } from "@/lib/application-email";
 export async function POST(_request: Request, { params }: { params: Promise<{ id: string }> }) {
   const session = await getServerSession(authOptions);
   if (!session) return NextResponse.json({ error: "Authentication required." }, { status: 401 });
-  if (!["LEARNER", "FARMER", "SMME", "COOPERATIVE"].includes((session.user as { role?: string } | undefined)?.role ?? "")) {
+  if (!["LEARNER", "FARMER", "SMME", "COOPERATIVE", "EMPLOYER"].includes((session.user as { role?: string } | undefined)?.role ?? "")) {
     return NextResponse.json({ error: "Only applicants can retry their application emails." }, { status: 403 });
   }
 

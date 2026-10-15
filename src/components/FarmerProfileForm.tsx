@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import { useRouter } from "next/navigation";
 import { provinces } from "@/lib/agri-options";
 import { applyProfileSuggestions } from "@/lib/profile-prefill";
 
@@ -8,6 +9,7 @@ const farmerNeeds = ["funding", "training", "mentorship", "market access", "equi
 
 export function FarmerProfileForm({
   initialProfile,
+  initialContact,
 }: {
   initialProfile: {
     farmName?: string | null;
@@ -21,8 +23,12 @@ export function FarmerProfileForm({
     landTenure?: string | null;
     hasRegisteredBusiness: boolean;
     needs: string[];
+    phoneNumber?: string | null;
+    location?: string | null;
   } | null;
+  initialContact: { phoneNumber?: string | null; location?: string | null };
 }) {
+  const router = useRouter();
   const [message, setMessage] = useState<string | null>(null);
   const [isSaving, setIsSaving] = useState(false);
   const formRef = useRef<HTMLFormElement>(null);
@@ -57,11 +63,14 @@ export function FarmerProfileForm({
           landTenure: form.get("landTenure") || undefined,
           hasRegisteredBusiness: form.get("hasRegisteredBusiness") === "on",
           needs: form.getAll("needs"),
+          phoneNumber: form.get("phoneNumber"),
+          location: form.get("district"),
         }),
       });
       const payload = await response.json();
       if (!response.ok) throw new Error(payload.error ?? "Unable to save your farm profile.");
       setMessage("Your farm profile has been saved.");
+      router.refresh();
     } catch (error) {
       setMessage(error instanceof Error ? error.message : "Unable to save your farm profile.");
     } finally {
@@ -71,14 +80,15 @@ export function FarmerProfileForm({
 
   return (
     <form ref={formRef} onSubmit={saveProfile} className="grid gap-4 rounded-2xl bg-white p-5 shadow-sm ring-1 ring-forest/10 sm:grid-cols-2">
-      <label className="text-sm font-medium text-ink">Farm name (optional)<input name="farmName" defaultValue={initialProfile?.farmName ?? ""} maxLength={160} className="mt-1 w-full rounded-xl border border-inkSoft/20 px-3 py-3" /></label>
+      <label className="text-sm font-medium text-ink">Farm name<input name="farmName" defaultValue={initialProfile?.farmName ?? ""} maxLength={160} required className="mt-1 w-full rounded-xl border border-inkSoft/20 px-3 py-3" /></label>
       <label className="text-sm font-medium text-ink">Province<select name="province" defaultValue={initialProfile?.province ?? ""} required className="mt-1 w-full rounded-xl border border-inkSoft/20 px-3 py-3"><option value="">Choose province</option>{provinces.map((province) => <option key={province} value={province}>{province}</option>)}</select></label>
-      <label className="text-sm font-medium text-ink">Town or district<input name="district" defaultValue={initialProfile?.district ?? ""} maxLength={160} className="mt-1 w-full rounded-xl border border-inkSoft/20 px-3 py-3" /></label>
+      <label className="text-sm font-medium text-ink">Town or district<input name="district" defaultValue={initialProfile?.district ?? initialContact.location ?? ""} maxLength={160} required className="mt-1 w-full rounded-xl border border-inkSoft/20 px-3 py-3" /></label>
+      <label className="text-sm font-medium text-ink">Contact number<input name="phoneNumber" type="tel" autoComplete="tel" defaultValue={initialContact.phoneNumber ?? ""} required minLength={7} className="mt-1 w-full rounded-xl border border-inkSoft/20 px-3 py-3" /></label>
       <label className="text-sm font-medium text-ink">Farm size in hectares<input name="farmSizeHectares" type="number" min="0" step="0.1" defaultValue={initialProfile?.farmSizeHectares ?? ""} className="mt-1 w-full rounded-xl border border-inkSoft/20 px-3 py-3" /></label>
-      <label className="text-sm font-medium text-ink">Type of farming<select name="farmingType" defaultValue={initialProfile?.farmingType ?? ""} className="mt-1 w-full rounded-xl border border-inkSoft/20 px-3 py-3"><option value="">Choose one</option><option value="crop">Crops</option><option value="livestock">Livestock</option><option value="mixed">Mixed farming</option><option value="agro-processing">Agro-processing</option></select></label>
-      <label className="text-sm font-medium text-ink">Main commodities, separated by commas<input name="mainCommodities" defaultValue={initialProfile?.mainCommodities.join(", ") ?? ""} placeholder="Maize, vegetables" className="mt-1 w-full rounded-xl border border-inkSoft/20 px-3 py-3" /></label>
+      <label className="text-sm font-medium text-ink">Type of farming<select name="farmingType" defaultValue={initialProfile?.farmingType ?? ""} required className="mt-1 w-full rounded-xl border border-inkSoft/20 px-3 py-3"><option value="">Choose one</option><option value="crop">Crops</option><option value="livestock">Livestock</option><option value="mixed">Mixed farming</option><option value="agro-processing">Agro-processing</option></select></label>
+      <label className="text-sm font-medium text-ink">Main commodities, separated by commas<input name="mainCommodities" defaultValue={initialProfile?.mainCommodities.join(", ") ?? ""} placeholder="Maize, vegetables" required className="mt-1 w-full rounded-xl border border-inkSoft/20 px-3 py-3" /></label>
       <label className="text-sm font-medium text-ink">Years farming<input name="yearsFarming" type="number" min="0" max="100" defaultValue={initialProfile?.yearsFarming ?? ""} className="mt-1 w-full rounded-xl border border-inkSoft/20 px-3 py-3" /></label>
-      <label className="text-sm font-medium text-ink">Farm stage<select name="farmerStage" defaultValue={initialProfile?.farmerStage ?? ""} className="mt-1 w-full rounded-xl border border-inkSoft/20 px-3 py-3"><option value="">Choose one</option><option value="subsistence">Subsistence</option><option value="emerging">Emerging</option><option value="commercial">Commercial</option></select></label>
+      <label className="text-sm font-medium text-ink">Farm stage<select name="farmerStage" defaultValue={initialProfile?.farmerStage ?? ""} required className="mt-1 w-full rounded-xl border border-inkSoft/20 px-3 py-3"><option value="">Choose one</option><option value="subsistence">Subsistence</option><option value="emerging">Emerging</option><option value="commercial">Commercial</option></select></label>
       <label className="text-sm font-medium text-ink">Land access<select name="landTenure" defaultValue={initialProfile?.landTenure ?? ""} className="mt-1 w-full rounded-xl border border-inkSoft/20 px-3 py-3"><option value="">Choose one</option><option value="owned">Owned</option><option value="leased">Leased</option><option value="communal">Communal</option><option value="land-reform beneficiary">Land-reform beneficiary</option></select></label>
       <label className="flex items-center gap-3 text-sm text-ink sm:col-span-2"><input name="hasRegisteredBusiness" type="checkbox" defaultChecked={initialProfile?.hasRegisteredBusiness ?? false} className="h-5 w-5 accent-forest" />I have a registered business</label>
       <fieldset className="sm:col-span-2">

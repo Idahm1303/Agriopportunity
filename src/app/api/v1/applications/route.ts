@@ -6,10 +6,11 @@ import { Prisma } from "@prisma/client";
 import { addAuditEntry } from "@/lib/audit";
 import { authOptions } from "@/lib/auth";
 import { deliverApplicationEmails } from "@/lib/application-email";
-import { createApplication, createDocument, getEmployerApplications, getUserApplications } from "@/lib/database";
+import { createApplication, createDocument, getEmployerApplications, getUserApplications, getUserGrantApplications } from "@/lib/database";
 import { prisma } from "@/lib/prisma";
 import { extractQualification } from "@/lib/qualification-ocr";
 import { uploadDocument } from "@/lib/object-storage";
+import { additionalGrantDocuments, standardGrantDocuments } from "@/lib/grant-application";
 import type { Role } from "@/lib/mock-data";
 
 const applicationSchema = z.object({
@@ -23,6 +24,165 @@ const allowedCVTypes = new Set([
   "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
 ]);
 const maximumDocumentSize = 10 * 1024 * 1024;
+const grantApplicationSchema = z.object({
+  companyName: z.string().trim().min(2).max(200),
+  registrationNumber: z.string().trim().min(2).max(80),
+  sdlNumber: z.string().trim().min(2).max(80),
+  companyAddress: z.string().trim().min(5).max(300),
+  province: z.string().trim().min(2).max(80),
+  contactName: z.string().trim().min(2).max(120),
+  contactEmail: z.email(),
+  contactPhone: z.string().trim().min(7).max(30),
+  requestedAmount: z.string().trim().regex(/^\d+(\.\d{1,2})?$/, "Enter the requested amount as a number."),
+  motivation: z.string().trim().min(50).max(5000),
+}).refine((data) => Number(data.requestedAmount) > 0, {
+  message: "The requested amount must be greater than zero.",
+  path: ["requestedAmount"],
+});
+
+async function submitEmployerGrantApplication(formData: FormData, userId: string) {
+  const opportunityId = formData.get("opportunityId");
+  if (typeof opportunityId !== "string" || !opportunityId) {
+    return NextResponse.json({ error: "Choose a funding opportunity." }, { status: 400 });
+  }
+
+  const opportunity = await prisma.opportunity.findUnique({
+    where: { id: opportunityId },
+    select: {
+      id: true,
+      title: true,
+      type: true,
+      status: true,
+      closingDate: true,
+      expiresAt: true,
+      postedById: true,
+      applicationEmail: true,
+      eligibilityCriteria: true,
+      postedBy: { select: { email: true } },
+    },
+  });
+  if (!opportunity || !["funding", "funding_call"].includes(opportunity.type)) {
+    return NextResponse.json({ error: "This is not a funding grant opportunity." }, { status: 404 });
+  }
+  if (opportunity.postedById === userId) {
+    return NextResponse.json({ error: "You cannot apply to a grant published by your own organisation." }, { status: 403 });
+  }
+  if (opportunity.status !== "open" ||
+    (opportunity.expiresAt && opportunity.expiresAt <= new Date()) ||
+    (opportunity.closingDate && opportunity.closingDate <= new Date())) {
+    return NextResponse.json({ error: "This grant is no longer accepting applications." }, { status: 409 });
+  }
+
+  const existingApplication = await prisma.application.findFirst({
+    where: { userId, opportunityId },
+    select: { id: true },
+  });
+  if (existingApplication) {
+    return NextResponse.json({ error: "Your organisation has already applied for this grant." }, { status: 409 });
+  }
+
+  const parsedDetails = grantApplicationSchema.safeParse({
+    companyName: formData.get("companyName"),
+    registrationNumber: formData.get("registrationNumber"),
+    sdlNumber: formData.get("sdlNumber"),
+    companyAddress: formData.get("companyAddress"),
+    province: formData.get("province"),
+    contactName: formData.get("contactName"),
+    contactEmail: formData.get("contactEmail"),
+    contactPhone: formData.get("contactPhone"),
+    requestedAmount: formData.get("requestedAmount"),
+    motivation: formData.get("motivation"),
+  });
+  if (!parsedDetails.success) {
+    return NextResponse.json({ error: parsedDetails.error.issues[0]?.message ?? "Complete all required company and grant details." }, { status: 400 });
+  }
+
+  const additionalDocuments = additionalGrantDocuments(opportunity.eligibilityCriteria);
+  const requiredDocuments = [
+    ...standardGrantDocuments.map((document) => ({ ...document, documentType: `grant_${document.key}` })),
+    ...additionalDocuments.map((label, index) => ({
+      key: `extra_${index}`,
+      label,
+      required: true,
+      documentType: `grant_extra_${index + 1}`,
+    })),
+  ];
+  const suppliedDocuments: Array<{ file: File; documentType: string }> = [];
+  for (const document of requiredDocuments) {
+    const file = formData.get(`document_${document.key}`);
+    if (!(file instanceof File) || file.size === 0) {
+      if (!document.required) continue;
+      return NextResponse.json({ error: `Upload the required document: ${document.label}.` }, { status: 400 });
+    }
+    if (!allowedDocumentTypes.has(file.type)) {
+      return NextResponse.json({ error: `${document.label} must be a PDF, JPG, or PNG file.` }, { status: 400 });
+    }
+    if (file.size > maximumDocumentSize) {
+      return NextResponse.json({ error: `${document.label} must be smaller than 10 MB.` }, { status: 400 });
+    }
+    suppliedDocuments.push({ file, documentType: document.documentType });
+  }
+
+  const documents: Array<{ documentType: string; fileName: string; storageUrl: string }> = [];
+  for (const document of suppliedDocuments) {
+    const storageUrl = await uploadDocument({
+      file: document.file,
+      userId,
+      documentType: document.documentType,
+      referenceId: opportunityId,
+    });
+    documents.push({
+      documentType: document.documentType,
+      fileName: document.file.name,
+      storageUrl,
+    });
+  }
+
+  const application = await createApplication({
+    userId,
+    opportunityId,
+    activeRole: "EMPLOYER",
+    coverNote: parsedDetails.data.motivation,
+    applicationData: {
+      applicationType: "employer_grant",
+      ...parsedDetails.data,
+      contactEmail: parsedDetails.data.contactEmail.toLowerCase(),
+      additionalRequiredDocuments: additionalDocuments,
+    },
+    documents,
+  });
+  if (!application) {
+    return NextResponse.json({ error: "The grant application could not be saved. Check whether it is still open or already submitted." }, { status: 409 });
+  }
+
+  await addAuditEntry({
+    action: "grant_application_submitted",
+    entityType: "application",
+    entityId: application.id,
+    performedBy: userId,
+    details: `Applied to grant opportunity ${opportunityId}.`,
+  });
+
+  let emailDelivery: { complete: boolean; employerSent: boolean; learnerSent: boolean; error: string | null } = {
+    complete: false,
+    employerSent: false,
+    learnerSent: false,
+    error: "Email delivery could not be confirmed. You can retry it from your employer dashboard.",
+  };
+  try {
+    emailDelivery = await deliverApplicationEmails(application.id, userId);
+  } catch (emailError) {
+    emailDelivery.error = emailError instanceof Error ? emailError.message : emailDelivery.error;
+  }
+
+  return NextResponse.json({
+    application,
+    emailDelivery,
+    message: emailDelivery.complete
+      ? "Grant application submitted. Confirmation emails have been sent."
+      : "Grant application saved, but email delivery could not be confirmed.",
+  }, { status: 201 });
+}
 
 export async function GET(request: Request) {
   const session = await getServerSession(authOptions);
@@ -36,11 +196,15 @@ export async function GET(request: Request) {
   if (role === "EMPLOYER" || role === "PROVIDER" || role === "ADMIN") {
     if (!userId) return NextResponse.json({ error: "User session missing." }, { status: 400 });
     const searchParams = new URL(request.url).searchParams;
-    return NextResponse.json({ applications: await getEmployerApplications(userId, role === "ADMIN", {
+    const applications = await getEmployerApplications(userId, role === "ADMIN", {
       category: searchParams.get("category") ?? undefined,
       field: searchParams.get("field") ?? undefined,
       verification: searchParams.get("verification") ?? undefined,
-    }) });
+    });
+    return NextResponse.json({
+      applications,
+      ...(role === "EMPLOYER" ? { submittedGrantApplications: await getUserGrantApplications(userId) } : {}),
+    });
   }
 
   if (!userId) {
@@ -57,8 +221,8 @@ export async function POST(request: Request) {
   }
 
   const role = (session.user as { role?: string } | undefined)?.role ?? "LEARNER";
-  if (!["LEARNER", "FARMER", "SMME", "COOPERATIVE"].includes(role)) {
-    return NextResponse.json({ error: "Choose a learner, farmer, SMME, or co-operative role to apply." }, { status: 403 });
+  if (!["LEARNER", "FARMER", "SMME", "COOPERATIVE", "EMPLOYER"].includes(role)) {
+    return NextResponse.json({ error: "Choose an applicant account to apply." }, { status: 403 });
   }
 
   const userId = (session.user as { userId?: string } | undefined)?.userId;
@@ -68,6 +232,7 @@ export async function POST(request: Request) {
 
   try {
     const formData = await request.formData();
+    if (role === "EMPLOYER") return await submitEmployerGrantApplication(formData, userId);
     const parsed = applicationSchema.safeParse({ opportunityId: formData.get("opportunityId"), coverNote: formData.get("coverNote") });
 
     if (!parsed.success) {

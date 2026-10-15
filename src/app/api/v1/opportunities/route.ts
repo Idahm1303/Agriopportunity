@@ -6,6 +6,7 @@ import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { createOpportunity, listOpportunities } from "@/lib/database";
 import { opportunityTypes } from "@/lib/agri-options";
+import { hasValidAdditionalGrantDocuments } from "@/lib/grant-application";
 
 const opportunitySchema = z.object({
   title: z.string().min(3, "Title must be at least 3 characters."),
@@ -16,9 +17,9 @@ const opportunitySchema = z.object({
   location: z.string().optional(),
   province: z.string().max(80).optional(),
   targetAudience: z.array(z.enum(["learner", "farmer", "smme", "cooperative", "graduate"])).default([]),
-  closingDate: z.string().date().optional(),
+  closingDate: z.string().date("Choose an opportunity closing date."),
   fundingAmountRange: z.string().max(100).optional(),
-  eligibilityCriteria: z.record(z.string(), z.unknown()).optional(),
+  eligibilityCriteria: z.record(z.string(), z.unknown()).refine(hasValidAdditionalGrantDocuments, "Add up to 10 valid extra grant document names.").optional(),
   applyUrl: z.url().optional(),
   requiredSkills: z.array(z.string().min(2)).min(1, "Choose at least one required skill."),
   expiresAt: z.string().optional(),
@@ -72,6 +73,11 @@ export async function POST(request: Request) {
       );
     }
 
+    const closingDate = new Date(`${parsed.data.closingDate}T23:59:59.999Z`);
+    if (closingDate <= new Date()) {
+      return NextResponse.json({ error: "The opportunity closing date must be today or later." }, { status: 400 });
+    }
+
     const userId = (session.user as { userId?: string } | undefined)?.userId ?? session.user?.email ?? "system";
     const opportunity = await createOpportunity({
       title: parsed.data.title,
@@ -80,7 +86,7 @@ export async function POST(request: Request) {
       type: parsed.data.type ?? parsed.data.category!,
       targetAudience: parsed.data.targetAudience,
       province: parsed.data.province,
-      closingDate: parsed.data.closingDate ? new Date(`${parsed.data.closingDate}T23:59:59.999Z`) : null,
+      closingDate,
       fundingAmountRange: parsed.data.fundingAmountRange,
       eligibilityCriteria: parsed.data.eligibilityCriteria as import("@prisma/client").Prisma.InputJsonValue | undefined,
       applyUrl: parsed.data.applyUrl,

@@ -1,10 +1,11 @@
 import Link from "next/link";
 import { getServerSession } from "next-auth";
+import { redirect } from "next/navigation";
 
 import { ApplyButton } from "@/components/ApplyButton";
 import { OpportunityActions } from "@/components/OpportunityActions";
 import { authOptions } from "@/lib/auth";
-import { findUserById, getMatchScoreForOpportunity, getOpportunityById } from "@/lib/database";
+import { findUserById, getMatchScoreForOpportunity, getOpportunityById, isLearnerProfileComplete } from "@/lib/database";
 import { opportunityTypeLabels } from "@/lib/agri-options";
 
 export default async function OpportunityDetailPage({ params }: { params: Promise<{ id: string }> }) {
@@ -12,6 +13,7 @@ export default async function OpportunityDetailPage({ params }: { params: Promis
   const session = await getServerSession(authOptions);
   const sessionUser = session?.user as { userId?: string; role?: string } | undefined;
   const userId = sessionUser?.userId;
+  if (sessionUser?.role === "LEARNER" && userId && !await isLearnerProfileComplete(userId)) redirect("/profile");
   const [opportunity, learner] = await Promise.all([
     getOpportunityById(id),
     userId ? findUserById(userId) : Promise.resolve(undefined),
@@ -89,7 +91,7 @@ export default async function OpportunityDetailPage({ params }: { params: Promis
               </div>
             </dl>
 
-            <div className="mt-6">
+            <div id="apply" className="mt-6 scroll-mt-6">
               {["LEARNER", "FARMER", "SMME", "COOPERATIVE"].includes(sessionUser?.role ?? "") ? (
                 <ApplyButton opportunityId={opportunity.id} />
               ) : (

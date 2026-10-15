@@ -2,8 +2,9 @@ import { OpportunitiesBrowser } from "@/components/OpportunitiesBrowser";
 import { getServerSession } from "next-auth";
 
 import { authOptions } from "@/lib/auth";
-import { findUserById, getProfileRecommendations, listOpportunities } from "@/lib/database";
+import { findUserById, getFarmBusinessOnboardingStatus, getProfileRecommendations, isLearnerProfileComplete, listOpportunities } from "@/lib/database";
 import type { Role } from "@/lib/mock-data";
+import { redirect } from "next/navigation";
 
 export default async function OpportunitiesPage({
   searchParams,
@@ -18,8 +19,15 @@ export default async function OpportunitiesPage({
   const session = await getServerSession(authOptions);
   const sessionUser = session?.user as { userId?: string; role?: string } | undefined;
   const userId = sessionUser?.userId;
+  if (sessionUser?.role === "LEARNER" && userId && !await isLearnerProfileComplete(userId)) redirect("/profile");
+  if (userId && (sessionUser?.role === "FARMER" || sessionUser?.role === "SMME" || sessionUser?.role === "COOPERATIVE")) {
+    const onboarding = await getFarmBusinessOnboardingStatus(userId, sessionUser.role);
+    if (!onboarding.profileComplete) {
+      redirect(sessionUser.role === "FARMER" ? "/profile/farmer" : "/profile/smme");
+    }
+  }
   const initialCategory = category ?? (
-    sessionUser?.role === "SMME" || sessionUser?.role === "COOPERATIVE" ? "all" : "job"
+    sessionUser?.role === "SMME" || sessionUser?.role === "COOPERATIVE" ? "smme_programme" : "job"
   );
   const [opportunities, learner] = await Promise.all([
     userId ? getProfileRecommendations(userId, sessionUser?.role as Role | undefined) : listOpportunities(),

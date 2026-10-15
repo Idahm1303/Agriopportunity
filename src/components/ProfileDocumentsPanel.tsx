@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useEffect, useState } from "react";
 
 type ProfileDocument = {
@@ -18,12 +19,25 @@ const documentLabels: Record<string, string> = {
   certificate: "Certificate",
 };
 
-export function ProfileDocumentsPanel() {
+export function ProfileDocumentsPanel({
+  onboardingMode = false,
+  onboardingProfileComplete = false,
+  allowProfileOnlyContinue = false,
+  documentsEnabled = true,
+}: {
+  onboardingMode?: boolean;
+  onboardingProfileComplete?: boolean;
+  allowProfileOnlyContinue?: boolean;
+  documentsEnabled?: boolean;
+}) {
   const [documents, setDocuments] = useState<ProfileDocument[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [isUploading, setIsUploading] = useState(false);
   const [notice, setNotice] = useState<string | null>(null);
+  const hasOnboardingDocument = documents.some((document) =>
+    ["id_document", "business_registration", "certificate"].includes(document.documentType),
+  );
 
   const loadDocuments = async () => {
     const response = await fetch("/api/v1/profile-documents");
@@ -86,10 +100,10 @@ export function ProfileDocumentsPanel() {
   return (
     <section className="space-y-4 rounded-2xl bg-white p-5 ring-1 ring-forest/10" aria-labelledby="profile-documents-heading">
       <div>
-        <h2 id="profile-documents-heading" className="font-display text-2xl text-forest">Documents and extracted details</h2>
-        <p className="mt-1 text-sm text-inkSoft">OCR suggestions are not saved to your profile or used to apply. Review them first, then update your profile yourself.</p>
+        <h2 id="profile-documents-heading" className="font-display text-2xl text-forest">Business documents</h2>
+        <p className="mt-1 text-sm text-inkSoft">{onboardingMode ? `Save your profile to enable document uploads${allowProfileOnlyContinue ? "; documents are optional and can be added later" : " required for setup"}. OCR suggestions are not a substitute for official document verification.` : "OCR suggestions are not saved to your profile or used to apply. Review them first, then update your profile yourself."}</p>
       </div>
-      <form onSubmit={upload} className="grid gap-3 sm:grid-cols-[1fr_1fr_auto]">
+      {documentsEnabled ? <form onSubmit={upload} className="grid gap-3 sm:grid-cols-[1fr_1fr_auto]">
         <label className="text-sm font-medium text-ink">Document type
           <select name="documentType" required defaultValue="certificate" className="mt-1 w-full rounded-xl border border-inkSoft/20 px-3 py-3">
             {Object.entries(documentLabels).map(([value, label]) => <option key={value} value={value}>{label}</option>)}
@@ -99,7 +113,7 @@ export function ProfileDocumentsPanel() {
           <input name="document" type="file" required accept="application/pdf,image/jpeg,image/png" className="mt-1 block w-full rounded-xl border border-inkSoft/20 px-3 py-2 text-xs" />
         </label>
         <button type="submit" disabled={isUploading} className="self-end rounded-xl bg-forest px-4 py-3 text-sm font-semibold text-white disabled:opacity-60">{isUploading ? "Reading..." : "Upload and read"}</button>
-      </form>
+      </form> : <p className="rounded-xl bg-cream p-4 text-sm text-inkSoft">Save your business profile before uploading documents. You can add them from this page afterward.</p>}
       {error ? <p role="alert" className="text-sm text-red-700">{error}</p> : null}
       {isLoading ? <p className="text-sm text-inkSoft" role="status">Loading documents...</p> : null}
       <ul className="space-y-3">
@@ -127,6 +141,19 @@ export function ProfileDocumentsPanel() {
         ))}
       </ul>
       {notice ? <p role="status" className="text-sm text-forest">{notice}</p> : null}
+      {onboardingMode ? (
+        <div className="rounded-xl bg-cream p-4">
+          <p className="text-sm text-ink">
+            Profile details: {onboardingProfileComplete ? "complete" : "still required"} ·
+            {" "}Business document: {hasOnboardingDocument ? "uploaded" : allowProfileOnlyContinue ? "optional; can be added later" : "still required"}
+          </p>
+          {onboardingProfileComplete && (hasOnboardingDocument || allowProfileOnlyContinue) ? (
+            <Link href="/dashboard" className="mt-3 inline-flex rounded-xl bg-forest px-5 py-3 text-sm font-semibold text-white">Continue to your dashboard</Link>
+          ) : (
+            <p className="mt-2 text-xs text-inkSoft">{allowProfileOnlyContinue ? "Save your farm profile to unlock your dashboard; you can upload documents later." : "Save your profile and upload at least one required document to unlock your dashboard."}</p>
+          )}
+        </div>
+      ) : null}
     </section>
   );
 }

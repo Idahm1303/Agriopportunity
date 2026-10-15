@@ -200,6 +200,7 @@ model Application {
   learnerEmailSentAt        DateTime?
   emailError                String?
   qualificationDocumentName String?
+  applicationData           Json?
   extractedText             String?
   extractedQualifications   String[]    @default([])
   extractedSkills           String[]    @default([])

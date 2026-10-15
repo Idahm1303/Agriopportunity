@@ -4,21 +4,23 @@ import { z } from "zod";
 
 import { authOptions } from "@/lib/auth";
 import { provinces } from "@/lib/agri-options";
-import { getUserProfiles, getUserRoles, upsertSmmeProfile } from "@/lib/database";
+import { getUserProfiles, getUserRoles, updateBusinessContactDetails, upsertSmmeProfile } from "@/lib/database";
 
 const optionalInteger = z.preprocess((value) => value === "" || value === null ? undefined : value, z.coerce.number().int().min(0).optional());
 const smmeSchema = z.object({
-  businessName: z.string().trim().max(200).optional(),
-  entityType: z.enum(["sole proprietor", "pty ltd", "co-operative", "NPO"]).optional(),
+  businessName: z.string().trim().min(2, "Enter your business name.").max(200),
+  entityType: z.enum(["sole proprietor", "pty ltd", "co-operative", "NPO"], "Choose your entity type."),
   registrationNumber: z.string().trim().max(80).optional(),
   cipcRegistered: z.boolean().default(false),
-  sectorFocus: z.string().trim().max(120).optional(),
+  sectorFocus: z.string().trim().min(2, "Enter your business or value-chain focus.").max(120),
   employeesCount: optionalInteger,
   yearsTrading: optionalInteger,
   annualTurnoverBand: z.enum(["pre-revenue", "under-R1m", "R1m-R5m", "R5m-R20m", "over-R20m"]).optional(),
   province: z.enum(provinces),
-  fundingStage: z.enum(["idea", "starting", "growing", "expanding"]).optional(),
+  fundingStage: z.enum(["idea", "starting", "growing", "expanding"], "Choose your business stage."),
   needs: z.array(z.enum(["funding", "training", "mentorship", "market access", "equipment", "compliance", "technology"])).default([]),
+  phoneNumber: z.string().trim().min(7, "Enter a contact number.").max(30),
+  location: z.string().trim().min(2, "Enter your town or district.").max(160),
 });
 
 async function getAuthorizedUser() {
@@ -50,6 +52,10 @@ export async function PUT(request: Request) {
   }
   const parsed = smmeSchema.safeParse(body);
   if (!parsed.success) return NextResponse.json({ error: parsed.error.issues[0]?.message ?? "Invalid SMME profile." }, { status: 400 });
-  const profile = await upsertSmmeProfile({ ...parsed.data, userId: auth.userId });
+  const { phoneNumber, location, ...profileData } = parsed.data;
+  const [profile] = await Promise.all([
+    upsertSmmeProfile({ ...profileData, userId: auth.userId }),
+    updateBusinessContactDetails({ userId: auth.userId, phoneNumber, location }),
+  ]);
   return NextResponse.json({ profile });
 }

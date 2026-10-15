@@ -2,10 +2,11 @@
 
 import Link from "next/link";
 import { useSession } from "next-auth/react";
-import { useRouter } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useState, useSyncExternalStore } from "react";
 
 import { roles } from "@/lib/agri-options";
+import { dashboardForRole } from "@/lib/role-routing";
 
 const roleLabels: Record<string, string> = {
   LEARNER: "Learner",
@@ -30,21 +31,17 @@ function getDataSaverSnapshot() {
   return window.localStorage.getItem("agri-data-saver") === "on";
 }
 
-function dashboardFor(role: string) {
-  if (role === "ADMIN") return "/admin/dashboard";
-  if (role === "EMPLOYER" || role === "PROVIDER") return "/employer/dashboard";
-  return "/dashboard";
-}
-
 export function SiteHeader() {
   const { data: session, status, update } = useSession();
   const router = useRouter();
+  const pathname = usePathname();
   const [isSwitching, setIsSwitching] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const dataSaver = useSyncExternalStore(subscribeToDataSaver, getDataSaverSnapshot, () => false);
   const user = session?.user as { role?: string; roles?: string[] } | undefined;
   const activeRole = user?.role ?? "";
   const assignedRoles = user?.roles ?? (activeRole ? [activeRole] : []);
+  const canExploreOpportunities = activeRole !== "EMPLOYER" && activeRole !== "PROVIDER";
 
   useEffect(() => {
     document.documentElement.dataset.dataSaver = dataSaver ? "on" : "off";
@@ -81,7 +78,7 @@ export function SiteHeader() {
       const updatedSession = await update({ activeRole: nextRole });
       const updatedUser = updatedSession?.user as { role?: string } | undefined;
       if (updatedUser?.role !== nextRole) throw new Error("Unable to switch active role.");
-      router.push(dashboardFor(nextRole));
+      router.push(dashboardForRole(nextRole));
       router.refresh();
     } catch (switchError) {
       setError(switchError instanceof Error ? switchError.message : "Unable to switch active role.");
@@ -103,10 +100,15 @@ export function SiteHeader() {
           >
             Data saver: {dataSaver ? "On" : "Off"}
           </button>
-          {status === "authenticated" ? (
+          {pathname === "/" ? (
             <>
-              <Link href="/opportunities" className="rounded-full border border-goldSoft/70 px-3 py-2 text-white/90 hover:bg-leaf">Explore opportunities</Link>
-              <Link href={dashboardFor(activeRole)} className="rounded-full border border-goldSoft/70 px-3 py-2 text-white/90 hover:bg-leaf">Dashboard</Link>
+              <Link href="/register" className="rounded-full border border-goldSoft/70 px-3 py-2 text-white/90 hover:bg-leaf">Join AgriOpportunity</Link>
+              <Link href="/login" className="rounded-full bg-gold px-3 py-2 text-forest hover:bg-goldSoft">Login</Link>
+            </>
+          ) : status === "authenticated" ? (
+            <>
+              {canExploreOpportunities ? <Link href="/opportunities" className="rounded-full border border-goldSoft/70 px-3 py-2 text-white/90 hover:bg-leaf">Explore opportunities</Link> : null}
+              <Link href={dashboardForRole(activeRole)} className="rounded-full border border-goldSoft/70 px-3 py-2 text-white/90 hover:bg-leaf">Dashboard</Link>
               <label className="flex items-center gap-2 rounded-full border border-white/25 px-3 py-1.5">
                 <span className="sr-only">Active role</span>
                 <select value={activeRole} disabled={isSwitching} onChange={(event) => void switchRole(event.target.value)} className="max-w-40 bg-forest text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-goldSoft">
@@ -119,10 +121,8 @@ export function SiteHeader() {
           ) : (
             <>
               <Link href="/opportunities" className="rounded-full border border-goldSoft/70 px-3 py-2 text-white/90 hover:bg-leaf">Explore opportunities</Link>
-              <Link href="/register" className="rounded-full border border-goldSoft/70 px-3 py-2 text-white/90 hover:bg-leaf">Learner</Link>
-              <Link href="/register?role=FARMER" className="rounded-full border border-goldSoft/70 px-3 py-2 text-white/90 hover:bg-leaf">Farmer</Link>
-              <Link href="/register?role=SMME" className="rounded-full border border-goldSoft/70 px-3 py-2 text-white/90 hover:bg-leaf">SMME</Link>
-              <Link href="/register?role=EMPLOYER" className="rounded-full bg-gold px-3 py-2 text-forest hover:bg-goldSoft">Employer</Link>
+              <Link href="/register" className="rounded-full border border-goldSoft/70 px-3 py-2 text-white/90 hover:bg-leaf">Join AgriOpportunity</Link>
+              <Link href="/login" className="rounded-full bg-gold px-3 py-2 text-forest hover:bg-goldSoft">Login</Link>
             </>
           )}
         </nav>

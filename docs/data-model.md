@@ -58,6 +58,7 @@ The Application model links a learner to an opportunity and stores progression t
 - matchedSkills: required skills matched against extracted skills
 - createdAt and updatedAt: submission and most recent update timestamps
 - documents: OCR document metadata linked to this application
+- applicationData: optional JSON details for specialist applications such as an employer grant submission
 - statusHistory: dated status transitions, including initial submission
 
 ### ApplicationStatusHistory

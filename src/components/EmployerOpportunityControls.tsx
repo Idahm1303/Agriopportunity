@@ -23,12 +23,24 @@ type OpportunityEditorData = {
   expiresAt?: string;
 };
 
+function eligibilityDetails(value: unknown) {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return { description: "", requiredDocuments: "" };
+  const details = value as Record<string, unknown>;
+  return {
+    description: typeof details.description === "string" ? details.description : "",
+    requiredDocuments: Array.isArray(details.requiredDocuments)
+      ? details.requiredDocuments.filter((document): document is string => typeof document === "string").join("\n")
+      : "",
+  };
+}
+
 export function EmployerOpportunityControls({ opportunityId, status, title, description, category, type, applicationEmail, location, province, targetAudience, closingDate, fundingAmountRange, eligibilityCriteria, applyUrl, requiredSkills, expiresAt }: OpportunityEditorData) {
   const router = useRouter();
   const [message, setMessage] = useState<string | null>(null);
   const [isEditing, setIsEditing] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const canEdit = title !== undefined && description !== undefined && category !== undefined && applicationEmail !== undefined && requiredSkills !== undefined;
+  const currentEligibility = eligibilityDetails(eligibilityCriteria);
   const nextStatus = status === "open" ? "closed" : "open";
 
   const updateStatus = async () => {
@@ -74,7 +86,12 @@ export function EmployerOpportunityControls({ opportunityId, status, title, desc
           targetAudience: form.getAll("targetAudience"),
           closingDate: form.get("closingDate") || null,
           fundingAmountRange: form.get("fundingAmountRange") || null,
-          eligibilityCriteria: form.get("eligibilityCriteria") ? { description: form.get("eligibilityCriteria") } : undefined,
+          eligibilityCriteria: {
+            ...(form.get("eligibilityCriteria") ? { description: form.get("eligibilityCriteria") } : {}),
+            ...(form.get("type") === "funding" || form.get("type") === "funding_call"
+              ? { requiredDocuments: String(form.get("requiredGrantDocuments") ?? "").split("\n").map((document) => document.trim()).filter(Boolean) }
+              : {}),
+          },
           applyUrl: form.get("applyUrl") || null,
           requiredSkills: String(form.get("requiredSkills") ?? "").split(",").map((skill) => skill.trim()).filter(Boolean),
         }),
@@ -127,9 +144,10 @@ export function EmployerOpportunityControls({ opportunityId, status, title, desc
           <label className="text-sm font-medium text-ink">Town or district<input name="location" defaultValue={location ?? ""} maxLength={160} className="mt-1 w-full rounded-lg border border-inkSoft/20 px-3 py-2" /></label>
           <label className="text-sm font-medium text-ink">Province<select name="province" defaultValue={province ?? ""} className="mt-1 w-full rounded-lg border border-inkSoft/20 px-3 py-2"><option value="">National / all provinces</option>{provinces.map((item) => <option key={item} value={item}>{item}</option>)}</select></label>
           <label className="text-sm font-medium text-ink">Required skills, comma separated<input name="requiredSkills" defaultValue={(requiredSkills ?? []).join(", ")} required className="mt-1 w-full rounded-lg border border-inkSoft/20 px-3 py-2" /></label>
-          <label className="text-sm font-medium text-ink">Closing date<input name="closingDate" type="date" defaultValue={closingDate?.slice(0, 10) ?? expiresAt ?? ""} className="mt-1 w-full rounded-lg border border-inkSoft/20 px-3 py-2" /></label>
+          <label className="text-sm font-medium text-ink">Closing date <span className="text-red-700">(required)</span><input name="closingDate" type="date" required defaultValue={closingDate?.slice(0, 10) ?? expiresAt ?? ""} className="mt-1 w-full rounded-lg border border-inkSoft/20 px-3 py-2" /></label>
           <label className="text-sm font-medium text-ink">Funding range<input name="fundingAmountRange" defaultValue={fundingAmountRange ?? ""} maxLength={100} className="mt-1 w-full rounded-lg border border-inkSoft/20 px-3 py-2" /></label>
-          <label className="text-sm font-medium text-ink">Eligibility requirements<input name="eligibilityCriteria" defaultValue={eligibilityCriteria && typeof eligibilityCriteria === "object" && "description" in eligibilityCriteria ? String(eligibilityCriteria.description) : ""} className="mt-1 w-full rounded-lg border border-inkSoft/20 px-3 py-2" /></label>
+          <label className="text-sm font-medium text-ink">Eligibility requirements<input name="eligibilityCriteria" defaultValue={currentEligibility.description} className="mt-1 w-full rounded-lg border border-inkSoft/20 px-3 py-2" /></label>
+          <label className="text-sm font-medium text-ink sm:col-span-2">Extra grant documents required (one per line; funding listings only)<textarea name="requiredGrantDocuments" defaultValue={currentEligibility.requiredDocuments} rows={3} placeholder="Add call-specific documents beyond the standard employer checklist" className="mt-1 w-full rounded-lg border border-inkSoft/20 px-3 py-2" /></label>
           <label className="text-sm font-medium text-ink">Application link<input name="applyUrl" type="url" defaultValue={applyUrl ?? ""} className="mt-1 w-full rounded-lg border border-inkSoft/20 px-3 py-2" /></label>
           <fieldset className="sm:col-span-2">
             <legend className="text-sm font-medium text-ink">Who is this for?</legend>

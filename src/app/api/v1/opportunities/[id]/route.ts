@@ -6,6 +6,7 @@ import { authOptions } from "@/lib/auth";
 import { getOpportunityById, notifyUsersAboutOpportunity, updateOpportunityDetails, updateOpportunityStatus } from "@/lib/database";
 import { addAuditEntry } from "@/lib/audit";
 import { opportunityTypes } from "@/lib/agri-options";
+import { hasValidAdditionalGrantDocuments } from "@/lib/grant-application";
 
 const statusSchema = z.object({ status: z.enum(["open", "closed"]) });
 const opportunityDetailsSchema = z.object({
@@ -15,9 +16,9 @@ const opportunityDetailsSchema = z.object({
   type: z.enum(opportunityTypes as [typeof opportunityTypes[number], ...typeof opportunityTypes[number][]]).optional(),
   targetAudience: z.array(z.enum(["learner", "farmer", "smme", "cooperative", "graduate"])).optional(),
   province: z.string().max(80).nullable().optional(),
-  closingDate: z.string().date().nullable().optional(),
+  closingDate: z.string().date("Choose an opportunity closing date."),
   fundingAmountRange: z.string().max(100).nullable().optional(),
-  eligibilityCriteria: z.record(z.string(), z.unknown()).nullable().optional(),
+  eligibilityCriteria: z.record(z.string(), z.unknown()).refine(hasValidAdditionalGrantDocuments, "Add up to 10 valid extra grant document names.").nullable().optional(),
   applyUrl: z.url().nullable().optional(),
   applicationEmail: z.email(),
   location: z.string().trim().max(160).optional(),
@@ -51,40 +52,35 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
   }
   const { id } = await params;
   const previousOpportunity = "status" in body ? await getOpportunityById(id) : undefined;
-  const opportunity = "status" in body
-    ? (() => {
-        const parsed = statusSchema.safeParse(body);
-        return parsed.success
-          ? updateOpportunityStatus({ id, employerId, status: parsed.data.status, isAdmin: role === "ADMIN" })
-          : null;
-      })()
-    : (() => {
-        const parsed = opportunityDetailsSchema.safeParse(body);
-        return parsed.success
-          ? updateOpportunityDetails({
-              id,
-              employerId,
-              isAdmin: role === "ADMIN",
-              ...parsed.data,
-              type: parsed.data.type ?? parsed.data.category,
-              category: parsed.data.type ?? parsed.data.category,
-              applicationEmail: parsed.data.applicationEmail.toLowerCase(),
-              closingDate: parsed.data.closingDate === undefined
-                ? undefined
-                : parsed.data.closingDate
-                  ? new Date(`${parsed.data.closingDate}T23:59:59.999Z`)
-                  : null,
-              eligibilityCriteria: parsed.data.eligibilityCriteria === null
-                ? undefined
-                : parsed.data.eligibilityCriteria as import("@prisma/client").Prisma.InputJsonValue | undefined,
-              expiresAt: parsed.data.expiresAt === undefined
-                ? undefined
-                : parsed.data.expiresAt
-                  ? new Date(`${parsed.data.expiresAt}T23:59:59.999Z`)
-                  : null,
-            })
-          : null;
-      })();
+  let opportunity: ReturnType<typeof updateOpportunityStatus> | ReturnType<typeof updateOpportunityDetails>;
+  if ("status" in body) {
+    const parsed = statusSchema.safeParse(body);
+    if (!parsed.success) return NextResponse.json({ error: parsed.error.issues[0]?.message ?? "Invalid opportunity status." }, { status: 400 });
+    opportunity = updateOpportunityStatus({ id, employerId, status: parsed.data.status, isAdmin: role === "ADMIN" });
+  } else {
+    const parsed = opportunityDetailsSchema.safeParse(body);
+    if (!parsed.success) return NextResponse.json({ error: parsed.error.issues[0]?.message ?? "Invalid opportunity details." }, { status: 400 });
+    const closingDate = new Date(`${parsed.data.closingDate}T23:59:59.999Z`);
+    if (closingDate <= new Date()) return NextResponse.json({ error: "The opportunity closing date must be today or later." }, { status: 400 });
+    opportunity = updateOpportunityDetails({
+      id,
+      employerId,
+      isAdmin: role === "ADMIN",
+      ...parsed.data,
+      type: parsed.data.type ?? parsed.data.category,
+      category: parsed.data.type ?? parsed.data.category,
+      applicationEmail: parsed.data.applicationEmail.toLowerCase(),
+      closingDate,
+      eligibilityCriteria: parsed.data.eligibilityCriteria === null
+        ? undefined
+        : parsed.data.eligibilityCriteria as import("@prisma/client").Prisma.InputJsonValue | undefined,
+      expiresAt: parsed.data.expiresAt === undefined
+        ? undefined
+        : parsed.data.expiresAt
+          ? new Date(`${parsed.data.expiresAt}T23:59:59.999Z`)
+          : null,
+    });
+  }
   const resolvedOpportunity = await opportunity;
   let notificationSummary: Awaited<ReturnType<typeof notifyUsersAboutOpportunity>> | undefined;
   let notificationWarning: string | undefined;

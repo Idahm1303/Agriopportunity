@@ -1,38 +1,31 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 
-const skillOptions = [
-  "Crop science",
-  "Irrigation",
-  "Farm operations",
-  "Data capture",
-  "Plant production",
-  "Livestock management",
-  "Agricultural finance",
-  "Food safety",
-  "Tractor operation",
-  "Sales and marketing",
-];
+import { learnerSkillOptions } from "@/lib/agri-options";
 
 export default function ProfilePage() {
   const router = useRouter();
   const [user, setUser] = useState({ fullName: "", email: "", phoneNumber: "", address: "", location: "" });
   const [skills, setSkills] = useState<string[]>([]);
+  const [qualificationDocument, setQualificationDocument] = useState<File | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [isLoadingProfile, setIsLoadingProfile] = useState(true);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const uploadInputRef = useRef<HTMLInputElement>(null);
+  const cameraInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     fetch("/api/v1/profile")
-      .then((response) => response.json())
-      .then((payload) => {
-        if (payload.user) {
-          setUser(payload.user);
-          setSkills(payload.user.skills ?? []);
-        }
+      .then(async (response) => {
+        const payload = await response.json();
+        if (!response.ok || !payload.user) throw new Error(payload.error ?? "Unable to load your profile.");
+        setUser(payload.user);
+        setSkills(payload.user.skills ?? []);
       })
-      .catch(() => setError("Unable to load your profile."));
+      .catch((loadError: unknown) => setError(loadError instanceof Error ? loadError.message : "Unable to load your profile."))
+      .finally(() => setIsLoadingProfile(false));
   }, []);
 
   const handleSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
@@ -42,17 +35,32 @@ export default function ProfilePage() {
 
     const formData = new FormData(event.currentTarget);
     skills.forEach((skill) => formData.append("skills", skill));
+    if (qualificationDocument) formData.append("qualificationDocument", qualificationDocument);
 
     try {
       const response = await fetch("/api/v1/profile", { method: "POST", body: formData });
       const payload = await response.json();
       if (!response.ok) throw new Error(payload.error ?? "Unable to save your profile.");
-      router.push("/opportunities");
+      router.push(qualificationDocument ? "/opportunities?category=all&matched=true" : "/opportunities");
       router.refresh();
     } catch (submitError) {
       setError(submitError instanceof Error ? submitError.message : "Unable to save your profile.");
       setIsSubmitting(false);
     }
+  };
+
+  const selectQualificationDocument = (file: File | undefined, source: "upload" | "camera") => {
+    if (!file) return;
+    setQualificationDocument(file);
+    setError(null);
+    if (source === "upload" && cameraInputRef.current) cameraInputRef.current.value = "";
+    if (source === "camera" && uploadInputRef.current) uploadInputRef.current.value = "";
+  };
+
+  const clearQualificationDocument = () => {
+    setQualificationDocument(null);
+    if (uploadInputRef.current) uploadInputRef.current.value = "";
+    if (cameraInputRef.current) cameraInputRef.current.value = "";
   };
 
   const toggleSkill = (skill: string) => {
@@ -64,7 +72,7 @@ export default function ProfilePage() {
       <div className="mb-8 max-w-2xl">
         <p className="text-sm font-semibold uppercase tracking-[0.2em] text-leaf">Welcome to AgriOpportunity</p>
         <h1 className="mt-3 font-display text-4xl text-forest">Welcome, {user.fullName || "there"}</h1>
-        <p className="mt-4 leading-7 text-inkSoft">Complete your details and choose your skills. You can upload a document for automatic OCR, or enter your qualification manually.</p>
+        <p className="mt-4 leading-7 text-inkSoft">Before you explore opportunities, complete your learner profile. We’ll use your interests and qualification to recommend relevant jobs, learnerships, graduate programmes, and more.</p>
       </div>
 
       <form onSubmit={handleSubmit} className="space-y-6 rounded-[2rem] bg-white p-6 shadow-[0_18px_50px_rgba(36,76,53,0.08)] ring-1 ring-forest/10 sm:p-8">
@@ -97,9 +105,9 @@ export default function ProfilePage() {
 
         <fieldset>
           <legend className="text-sm font-medium text-ink">Your skill set</legend>
-          <p className="mt-1 text-sm text-inkSoft">Choose all that apply. The document scan can add more skills automatically.</p>
+          <p className="mt-1 text-sm text-inkSoft">Choose at least one area you are interested in. The document scan can add more skills automatically.</p>
           <div className="mt-4 grid gap-3 sm:grid-cols-2">
-            {skillOptions.map((skill) => (
+            {learnerSkillOptions.map((skill) => (
               <label key={skill} className="flex cursor-pointer items-center gap-3 rounded-xl border border-forest/10 bg-cream p-3 text-sm text-ink has-[:checked]:border-forest has-[:checked]:bg-goldSoft/40">
                 <input type="checkbox" checked={skills.includes(skill)} onChange={() => toggleSkill(skill)} className="h-4 w-4 accent-forest" />
                 {skill}
@@ -109,23 +117,51 @@ export default function ProfilePage() {
         </fieldset>
 
         <div>
-          <label className="mb-2 block text-sm font-medium text-ink" htmlFor="qualification">Qualification or education level</label>
-          <input id="qualification" name="qualification" required placeholder="e.g. National Diploma: Agriculture" className="w-full rounded-xl border border-inkSoft/20 bg-cream px-3 py-3 text-ink" />
+          <label className="mb-2 block text-sm font-medium text-ink" htmlFor="qualification">Qualification or education level <span className="font-normal text-inkSoft">(optional; OCR will read your document)</span></label>
+          <input id="qualification" name="qualification" placeholder="e.g. National Diploma: Agriculture" className="w-full rounded-xl border border-inkSoft/20 bg-cream px-3 py-3 text-ink" />
         </div>
 
         <div>
-          <label className="mb-2 block text-sm font-medium text-ink" htmlFor="qualificationDocument">Upload qualification <span className="font-normal text-inkSoft">(optional)</span></label>
-          <input id="qualificationDocument" name="qualificationDocument" type="file" accept="application/pdf,image/jpeg,image/png" className="w-full rounded-xl border border-dashed border-forest/25 bg-cream px-3 py-3 text-sm text-ink" />
-          <p className="mt-2 text-xs text-inkSoft">PDF, JPG, or PNG up to 10 MB. If uploaded, OCR will add skills and qualifications automatically.</p>
+          <p className="mb-2 block text-sm font-medium text-ink">Qualification document <span className="font-normal text-red-700">(required)</span></p>
+          <input
+            ref={uploadInputRef}
+            type="file"
+            accept="application/pdf,image/jpeg,image/png"
+            className="sr-only"
+            tabIndex={-1}
+            aria-hidden="true"
+            onChange={(event) => selectQualificationDocument(event.currentTarget.files?.[0], "upload")}
+          />
+          <input
+            ref={cameraInputRef}
+            type="file"
+            accept="image/jpeg,image/png"
+            capture="environment"
+            className="sr-only"
+            tabIndex={-1}
+            aria-hidden="true"
+            onChange={(event) => selectQualificationDocument(event.currentTarget.files?.[0], "camera")}
+          />
+          <div className="flex flex-wrap gap-3">
+            <button type="button" disabled={isSubmitting} onClick={() => cameraInputRef.current?.click()} className="rounded-xl border border-forest/20 bg-white px-4 py-3 text-sm font-semibold text-forest disabled:opacity-60">Take a photo</button>
+            <button type="button" disabled={isSubmitting} onClick={() => uploadInputRef.current?.click()} className="rounded-xl border border-forest/20 bg-white px-4 py-3 text-sm font-semibold text-forest disabled:opacity-60">Upload a PDF or photo</button>
+          </div>
+          <p className="mt-2 text-xs text-inkSoft">Upload a PDF or photo, or take a photo with your device camera. PDF, JPG, or PNG up to 10 MB. Submit to run OCR and get matched opportunities.</p>
+          {qualificationDocument ? (
+            <div className="mt-3 flex flex-wrap items-center gap-3 rounded-xl bg-cream p-3 text-sm text-ink">
+              <span>Selected: {qualificationDocument.name}</span>
+              <button type="button" disabled={isSubmitting} onClick={clearQualificationDocument} className="font-semibold text-forest underline disabled:opacity-60">Remove file</button>
+            </div>
+          ) : null}
         </div>
 
         {error ? <p className="rounded-xl bg-red-50 p-3 text-sm text-red-700">{error}</p> : null}
-        <button type="submit" disabled={isSubmitting} className="group relative w-full overflow-hidden rounded-2xl border-2 border-forest bg-forest px-5 py-4 font-semibold text-cream shadow-[0_10px_0_#c98b4a,0_18px_30px_rgba(36,76,53,0.16)] transition-all duration-200 hover:-translate-y-0.5 hover:bg-leaf hover:shadow-[0_12px_0_#c98b4a,0_22px_34px_rgba(36,76,53,0.2)] focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-goldSoft active:translate-y-1 active:shadow-[0_5px_0_#c98b4a,0_10px_18px_rgba(36,76,53,0.14)] disabled:cursor-not-allowed disabled:translate-y-0 disabled:opacity-60 disabled:shadow-[0_6px_0_#9f744b,0_10px_18px_rgba(36,76,53,0.1)]">
+        <button type="submit" disabled={isSubmitting || isLoadingProfile} className="group relative w-full overflow-hidden rounded-2xl border-2 border-forest bg-forest px-5 py-4 font-semibold text-cream shadow-[0_10px_0_#c98b4a,0_18px_30px_rgba(36,76,53,0.16)] transition-all duration-200 hover:-translate-y-0.5 hover:bg-leaf hover:shadow-[0_12px_0_#c98b4a,0_22px_34px_rgba(36,76,53,0.2)] focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-goldSoft active:translate-y-1 active:shadow-[0_5px_0_#c98b4a,0_10px_18px_rgba(36,76,53,0.14)] disabled:cursor-not-allowed disabled:translate-y-0 disabled:opacity-60 disabled:shadow-[0_6px_0_#9f744b,0_10px_18px_rgba(36,76,53,0.1)]">
           <span className="relative z-10 flex items-center justify-center gap-2">
             <span className="inline-flex h-6 w-6 items-center justify-center rounded-full border border-goldSoft/60 bg-goldSoft/15 text-sm text-goldSoft transition-transform duration-200 group-hover:rotate-12">
               {isSubmitting ? "..." : "→"}
             </span>
-            <span>{isSubmitting ? "Saving profile and finding matches..." : "Submit and see matched opportunities"}</span>
+            <span>{isLoadingProfile ? "Loading your details..." : isSubmitting ? "Reading your qualification and finding matches..." : "Submit profile and get recommendations"}</span>
           </span>
         </button>
       </form>

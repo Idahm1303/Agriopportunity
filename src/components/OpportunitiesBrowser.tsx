@@ -146,26 +146,27 @@ export function OpportunitiesBrowser({
               : null;
             const closeDate = opportunity.closingDate ?? opportunity.expiresAt;
             return (
-              <Link key={opportunity.id} href={`/opportunities/${opportunity.id}`} className="block rounded-[1.75rem] border border-forest/10 bg-gradient-to-br from-white to-cream p-5 shadow-[0_18px_40px_rgba(31,45,34,0.06)] transition hover:-translate-y-1 hover:shadow-[0_20px_45px_rgba(31,45,34,0.09)] focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-goldSoft">
-                <article>
-                  <div className="mb-4 flex items-start justify-between gap-3">
-                    <div>
-                      <p className="text-xs font-semibold uppercase tracking-[0.12em] text-leaf">{opportunity.organizationName ?? opportunityTypeLabels[opportunity.type ?? "job"]}</p>
-                      <h2 className="mt-2 text-xl font-semibold text-ink">{opportunity.title}</h2>
-                    </div>
-                    {matchScore !== null ? <span className="rounded-full bg-forest px-2.5 py-1 text-xs font-semibold text-cream">{matchScore}% match</span> : null}
+              <article key={opportunity.id} className="rounded-[1.75rem] border border-forest/10 bg-gradient-to-br from-white to-cream p-5 shadow-[0_18px_40px_rgba(31,45,34,0.06)] transition hover:-translate-y-1 hover:shadow-[0_20px_45px_rgba(31,45,34,0.09)]">
+                <div className="mb-4 flex items-start justify-between gap-3">
+                  <div>
+                    <p className="text-xs font-semibold uppercase tracking-[0.12em] text-leaf">{opportunity.organizationName ?? opportunityTypeLabels[opportunity.type ?? "job"]}</p>
+                    <h2 className="mt-2 text-xl font-semibold text-ink">
+                      <Link href={`/opportunities/${opportunity.id}`} className="rounded-sm underline-offset-4 hover:underline focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-goldSoft">{opportunity.title}</Link>
+                    </h2>
                   </div>
-                  <p className="mb-4 line-clamp-3 text-sm leading-6 text-inkSoft">{opportunity.description}</p>
-                  {opportunity.matchReason ? <p className="mb-3 text-sm text-forest">{opportunity.matchReason}</p> : null}
-                  <div className="mb-4 flex flex-wrap gap-2">
-                    {opportunity.requiredSkills.slice(0, 3).map((skill) => <span key={skill} className="rounded-full bg-cream2 px-2 py-1 text-xs text-inkSoft">{skill}</span>)}
-                  </div>
-                  <div className="flex items-center justify-between gap-2 text-sm text-inkSoft">
-                    <span>{opportunity.province ?? opportunity.location ?? "National"}</span>
-                    <span>{closeDate ? `Closes ${new Date(closeDate).toLocaleDateString()}` : "No closing date"}</span>
-                  </div>
-                </article>
-              </Link>
+                  {matchScore !== null ? <span className="rounded-full bg-forest px-2.5 py-1 text-xs font-semibold text-cream">{matchScore}% match</span> : null}
+                </div>
+                <p className="mb-4 line-clamp-3 text-sm leading-6 text-inkSoft">{opportunity.description}</p>
+                {opportunity.matchReason ? <p className="mb-3 text-sm text-forest">{opportunity.matchReason}</p> : null}
+                <div className="mb-4 flex flex-wrap gap-2">
+                  {opportunity.requiredSkills.slice(0, 3).map((skill) => <span key={skill} className="rounded-full bg-cream2 px-2 py-1 text-xs text-inkSoft">{skill}</span>)}
+                </div>
+                <div className="flex items-center justify-between gap-2 text-sm text-inkSoft">
+                  <span>{opportunity.province ?? opportunity.location ?? "National"}</span>
+                  <span>{closeDate ? `Closes ${new Date(closeDate).toLocaleDateString()}` : "No closing date"}</span>
+                </div>
+                <Link href={`/opportunities/${opportunity.id}#apply`} className="mt-4 inline-flex min-h-11 items-center justify-center rounded-xl bg-forest px-4 py-2 text-sm font-semibold text-white transition hover:bg-leaf focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-goldSoft">Apply now</Link>
+              </article>
             );
           })}
         </div>

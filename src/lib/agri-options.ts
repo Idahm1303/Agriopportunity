@@ -28,6 +28,19 @@ export const languages = [
 
 export const roles: Role[] = ["LEARNER", "FARMER", "SMME", "COOPERATIVE", "EMPLOYER", "PROVIDER"];
 
+export const learnerSkillOptions = [
+  "Crop science",
+  "Irrigation",
+  "Farm operations",
+  "Data capture",
+  "Plant production",
+  "Livestock management",
+  "Agricultural finance",
+  "Food safety",
+  "Tractor operation",
+  "Sales and marketing",
+] as const;
+
 export const opportunityTypes: OpportunityType[] = [
   "job",
   "learnership",

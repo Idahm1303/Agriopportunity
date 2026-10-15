@@ -4,21 +4,23 @@ import { z } from "zod";
 
 import { authOptions } from "@/lib/auth";
 import { provinces } from "@/lib/agri-options";
-import { getUserProfiles, getUserRoles, upsertFarmerProfile } from "@/lib/database";
+import { getUserProfiles, getUserRoles, updateBusinessContactDetails, upsertFarmerProfile } from "@/lib/database";
 
 const optionalNumber = z.preprocess((value) => value === "" || value === null ? undefined : value, z.coerce.number().min(0).optional());
 const farmerSchema = z.object({
-  farmName: z.string().trim().max(160).optional(),
+  farmName: z.string().trim().min(2, "Enter your farm name.").max(160),
   province: z.enum(provinces),
-  district: z.string().trim().max(160).optional(),
+  district: z.string().trim().min(2, "Enter your town or district.").max(160),
   farmSizeHectares: optionalNumber,
-  farmingType: z.enum(["crop", "livestock", "mixed", "agro-processing"]).optional(),
-  mainCommodities: z.array(z.string().trim().min(1).max(80)).max(20).default([]),
+  farmingType: z.enum(["crop", "livestock", "mixed", "agro-processing"]),
+  mainCommodities: z.array(z.string().trim().min(1).max(80)).min(1, "Add at least one main commodity.").max(20),
   yearsFarming: z.preprocess((value) => value === "" || value === null ? undefined : value, z.coerce.number().int().min(0).max(100).optional()),
-  farmerStage: z.enum(["subsistence", "emerging", "commercial"]).optional(),
+  farmerStage: z.enum(["subsistence", "emerging", "commercial"], "Choose your farm stage."),
   landTenure: z.enum(["owned", "leased", "communal", "land-reform beneficiary"]).optional(),
   hasRegisteredBusiness: z.boolean().default(false),
   needs: z.array(z.enum(["funding", "training", "mentorship", "market access", "equipment"])).default([]),
+  phoneNumber: z.string().trim().min(7, "Enter a contact number.").max(30),
+  location: z.string().trim().min(2, "Enter your town or district.").max(160),
 });
 
 async function getAuthorizedUser() {
@@ -49,6 +51,10 @@ export async function PUT(request: Request) {
   }
   const parsed = farmerSchema.safeParse(body);
   if (!parsed.success) return NextResponse.json({ error: parsed.error.issues[0]?.message ?? "Invalid farm profile." }, { status: 400 });
-  const profile = await upsertFarmerProfile({ ...parsed.data, userId: auth.userId });
+  const { phoneNumber, location, ...profileData } = parsed.data;
+  const [profile] = await Promise.all([
+    upsertFarmerProfile({ ...profileData, userId: auth.userId }),
+    updateBusinessContactDetails({ userId: auth.userId, phoneNumber, location }),
+  ]);
   return NextResponse.json({ profile });
 }

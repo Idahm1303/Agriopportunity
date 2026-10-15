@@ -4,6 +4,7 @@ import { z } from "zod";
 
 import { authOptions } from "@/lib/auth";
 import { createDocument, findUserById, updateUserProfile } from "@/lib/database";
+import { learnerSkillOptions } from "@/lib/agri-options";
 import { extractQualification } from "@/lib/qualification-ocr";
 import { uploadDocument } from "@/lib/object-storage";
 
@@ -11,8 +12,8 @@ const profileSchema = z.object({
   phoneNumber: z.string().min(7, "Enter a valid contact number."),
   address: z.string().min(3, "Enter your address."),
   location: z.string().min(2, "Enter your province or town."),
-  skills: z.array(z.string().min(1)).min(1, "Select at least one skill."),
-  qualification: z.string().min(2, "Enter your qualification."),
+  skills: z.array(z.enum(learnerSkillOptions)).min(1, "Select at least one skill."),
+  qualification: z.string().trim(),
 });
 
 const allowedDocumentTypes = new Set(["application/pdf", "image/jpeg", "image/png"]);
@@ -28,6 +29,8 @@ export async function POST(request: Request) {
 
   try {
     const formData = await request.formData();
+    const document = formData.get("qualificationDocument");
+    const hasQualificationDocument = document instanceof File && document.size > 0;
     const skills = formData.getAll("skills").map(String);
     const parsed = profileSchema.safeParse({
       phoneNumber: formData.get("phoneNumber"),
@@ -44,12 +47,13 @@ export async function POST(request: Request) {
       );
     }
 
+    if (!hasQualificationDocument) return NextResponse.json({ error: "Upload or take a photo of your qualification to continue." }, { status: 400 });
+
     const currentUser = await findUserById(userId);
     if (!currentUser) {
       return NextResponse.json({ error: "User account not found." }, { status: 404 });
     }
 
-    const document = formData.get("qualificationDocument");
     let extractedSkills: string[] = [];
     let extractedQualifications: string[] = [];
     let extractedText: string | undefined;
@@ -73,7 +77,11 @@ export async function POST(request: Request) {
     }
 
     const profileSkills = Array.from(new Set([...parsed.data.skills, ...extractedSkills]));
-    const qualifications = Array.from(new Set([parsed.data.qualification, ...currentUser.qualifications, ...extractedQualifications]));
+    const qualifications = Array.from(new Set([
+      ...(parsed.data.qualification ? [parsed.data.qualification] : []),
+      ...currentUser.qualifications,
+      ...extractedQualifications,
+    ]));
 
     await updateUserProfile({
       id: userId,

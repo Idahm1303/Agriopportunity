@@ -5,6 +5,8 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 
+import { dashboardForRole } from "@/lib/role-routing";
+
 export default function LoginPage() {
   const router = useRouter();
   const [form, setForm] = useState({ email: "", password: "" });
@@ -33,7 +35,7 @@ export default function LoginPage() {
     }
 
     const session = await getSession();
-    router.push((session?.user as { role?: string } | undefined)?.role === "EMPLOYER" ? "/employer/dashboard" : "/profile");
+    router.push(dashboardForRole((session?.user as { role?: string } | undefined)?.role));
     router.refresh();
     setIsSubmitting(false);
   };
