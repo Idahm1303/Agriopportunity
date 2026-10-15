@@ -53,6 +53,12 @@ export default function RegisterPage({ searchParams }: { searchParams: Promise<{
       return;
     }
 
+    if (form.role === "EMPLOYER" && !/^\d{10}$/.test(form.phoneNumber)) {
+      setError("Enter a contact number with exactly 10 digits.");
+      setIsSubmitting(false);
+      return;
+    }
+
     try {
       const registrationData = {
         ...form,
@@ -248,11 +254,15 @@ export default function RegisterPage({ searchParams }: { searchParams: Promise<{
                 id="phoneNumber"
                 type="tel"
                 autoComplete="tel"
+                inputMode="numeric"
+                maxLength={10}
+                pattern="[0-9]{10}"
                 value={form.phoneNumber}
-                onChange={(event) => setForm({ ...form, phoneNumber: event.target.value })}
+                onChange={(event) => setForm({ ...form, phoneNumber: event.target.value.replace(/\D/g, "").slice(0, 10) })}
                 className="w-full rounded-xl border border-inkSoft/20 bg-cream px-3 py-3 text-base text-ink focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-goldSoft"
                 required
               />
+              <p className="mt-2 text-xs text-inkSoft">Enter exactly 10 digits.</p>
             </div>
           ) : null}
 

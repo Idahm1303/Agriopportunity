@@ -29,8 +29,8 @@ const registerSchema = z.object({
 }).refine((data) => data.role !== "EMPLOYER" || Boolean(data.organizationName && data.organizationName.length >= 2), {
   message: "Enter an organisation name of at least 2 characters.",
   path: ["organizationName"],
-}).refine((data) => data.role !== "EMPLOYER" || Boolean(data.phoneNumber && data.phoneNumber.length >= 7), {
-  message: "Enter a contact number of at least 7 characters.",
+}).refine((data) => data.role !== "EMPLOYER" || Boolean(data.phoneNumber && /^\d{10}$/.test(data.phoneNumber)), {
+  message: "Enter a contact number with exactly 10 digits.",
   path: ["phoneNumber"],
 }).refine((data) => !["FARMER", "SMME", "COOPERATIVE"].includes(data.role) || Boolean(data.province), {
   message: "Choose your province.",

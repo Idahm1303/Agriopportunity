@@ -28,14 +28,19 @@ paths:
                   type: string
                   minLength: 8
                   maxLength: 10
-                  description: 8-10 printable ASCII characters including at least one letter and one number, with at most one special character.
+                  description: 8-10 printable ASCII characters including at least one letter, one number, and one special character.
                 fullName: { type: string }
                 role: { type: string, enum: [LEARNER, FARMER, SMME, COOPERATIVE, EMPLOYER, PROVIDER] }
                 province: { type: string }
                 townDistrict: { type: string }
                 preferredLanguage: { type: string }
                 organizationName: { type: string }
-                phoneNumber: { type: string }
+                phoneNumber:
+                  type: string
+                  minLength: 10
+                  maxLength: 10
+                  pattern: '^[0-9]{10}$'
+                  description: Employer contact number must contain exactly 10 digits.
       responses:
         "201": { description: Account created; response includes shared user ID }
         "400": { description: Invalid registration details }
