@@ -6,13 +6,16 @@ import { z } from "zod";
 import { createUser, findUserByEmail } from "@/lib/database";
 import { languages, provinces } from "@/lib/agri-options";
 import { uploadDocument } from "@/lib/object-storage";
+import { isAllowedRegistrationEmail, registrationEmailPolicyMessage } from "@/lib/email-validation";
+import { isValidPassword, passwordPolicyMessage } from "@/lib/password-validation";
 
 const allowedBusinessDocumentTypes = new Set(["application/pdf", "image/jpeg", "image/png"]);
 const maximumBusinessDocumentSize = 10 * 1024 * 1024;
 
 const registerSchema = z.object({
-  email: z.email("Please provide a valid email address.").trim().toLowerCase(),
-  password: z.string().min(8, "Password must be at least 8 characters."),
+  email: z.email("Please provide a valid email address.").trim().toLowerCase()
+    .refine(isAllowedRegistrationEmail, registrationEmailPolicyMessage),
+  password: z.string().refine(isValidPassword, passwordPolicyMessage),
   fullName: z.string().trim().min(2, "Full name is required.").max(120, "Name must be 120 characters or fewer."),
   organizationName: z.string().trim().max(200, "Organisation name must be 200 characters or fewer.").optional(),
   phoneNumber: z.string().trim().max(30, "Contact number must be 30 characters or fewer.").optional(),
@@ -152,10 +155,9 @@ export async function POST(request: Request) {
     if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2002") {
       return NextResponse.json({ error: "An account with this email already exists." }, { status: 409 });
     }
+    console.error("User registration failed:", error);
     return NextResponse.json(
-      {
-        error: error instanceof Error ? error.message : "Registration failed.",
-      },
+      { error: "Unable to complete registration right now. Please try again." },
       { status: 500 },
     );
   }

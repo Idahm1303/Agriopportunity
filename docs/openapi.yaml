@@ -20,8 +20,15 @@ paths:
               type: object
               required: [email, password, fullName]
               properties:
-                email: { type: string, format: email }
-                password: { type: string, minLength: 8 }
+                email:
+                  type: string
+                  format: email
+                  description: UK (.uk) email domains are not accepted.
+                password:
+                  type: string
+                  minLength: 8
+                  maxLength: 10
+                  description: 8-10 printable ASCII characters including at least one letter and one number, with at most one special character.
                 fullName: { type: string }
                 role: { type: string, enum: [LEARNER, FARMER, SMME, COOPERATIVE, EMPLOYER, PROVIDER] }
                 province: { type: string }

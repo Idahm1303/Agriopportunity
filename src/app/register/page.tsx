@@ -5,6 +5,8 @@ import { signIn } from "next-auth/react";
 import { useRouter } from "next/navigation";
 import { use, useState } from "react";
 import { languages, provinces } from "@/lib/agri-options";
+import { isAllowedRegistrationEmail, registrationEmailPolicyMessage } from "@/lib/email-validation";
+import { isValidPassword, passwordPolicyMessage } from "@/lib/password-validation";
 import { dashboardForRole } from "@/lib/role-routing";
 
 const registrationRoles = ["LEARNER", "FARMER", "SMME", "EMPLOYER"] as const;
@@ -39,6 +41,18 @@ export default function RegisterPage({ searchParams }: { searchParams: Promise<{
     setIsSubmitting(true);
     setError(null);
 
+    if (!isValidPassword(form.password)) {
+      setError(passwordPolicyMessage);
+      setIsSubmitting(false);
+      return;
+    }
+
+    if (!isAllowedRegistrationEmail(form.email)) {
+      setError(registrationEmailPolicyMessage);
+      setIsSubmitting(false);
+      return;
+    }
+
     try {
       const registrationData = {
         ...form,
@@ -65,9 +79,19 @@ export default function RegisterPage({ searchParams }: { searchParams: Promise<{
         body: formData,
       });
 
-      const payload = await response.json();
       if (!response.ok) {
-        throw new Error(payload.error ?? "Registration failed.");
+        let payload: unknown;
+        try {
+          payload = await response.json();
+        } catch {
+          payload = null;
+        }
+        const message =
+          typeof payload === "object" && payload !== null && "error" in payload && typeof payload.error === "string"
+            ? payload.error
+            : "Registration failed. Please try again.";
+        setError(message);
+        return;
       }
 
       const login = await signIn("credentials", {
@@ -88,8 +112,8 @@ export default function RegisterPage({ searchParams }: { searchParams: Promise<{
         );
       }
       router.refresh();
-    } catch (submitError) {
-      setError(submitError instanceof Error ? submitError.message : "Registration failed.");
+    } catch {
+      setError("Unable to complete registration right now. Please check your connection and try again.");
     } finally {
       setIsSubmitting(false);
     }
@@ -161,12 +185,15 @@ export default function RegisterPage({ searchParams }: { searchParams: Promise<{
             <input
               id="password"
               type="password"
+              autoComplete="new-password"
               minLength={8}
+              maxLength={10}
               value={form.password}
               onChange={(event) => setForm({ ...form, password: event.target.value })}
               className="w-full rounded-xl border border-inkSoft/20 bg-cream px-3 py-3 text-base text-ink focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-goldSoft"
               required
             />
+            <p className="mt-2 text-xs text-inkSoft">{passwordPolicyMessage}</p>
           </div>
 
           <div>
