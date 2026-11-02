@@ -209,6 +209,9 @@ model Application {
   verifiedBy                String?
   placedAt                  DateTime?
   placedBy                  String?
+  interviewDate             DateTime?   @db.Date
+  interviewTime             String?
+  interviewLocation         String?
   createdAt                 DateTime    @default(now())
   updatedAt                 DateTime    @updatedAt
   documents                 Document[]

@@ -268,6 +268,11 @@ export default async function DashboardPage() {
                     </span>
                   </div>
                   <p className="mt-2 text-xs text-inkSoft">Applied {new Date(application.createdAt).toLocaleDateString()} · Updated {new Date(application.updatedAt ?? application.createdAt).toLocaleDateString()}</p>
+                  {application.interviewDate && application.interviewTime && application.interviewLocation ? (
+                    <p className="mt-2 rounded-lg bg-white p-3 text-sm text-inkSoft">
+                      Interview: {new Date(`${application.interviewDate}T00:00:00`).toLocaleDateString()} at {application.interviewTime} · {application.interviewLocation}
+                    </p>
+                  ) : null}
                   <Link href={`/opportunities/${application.opportunityId}`} className="mt-2 inline-flex text-sm font-medium text-forest underline-offset-4 hover:underline">View opportunity</Link>
                   {application.statusHistory?.length ? (
                     <ol className="mt-4 space-y-2 border-l-2 border-forest/15 pl-4" aria-label="Application status timeline">

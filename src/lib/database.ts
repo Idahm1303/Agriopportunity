@@ -72,6 +72,9 @@ function mapApplication(application: Prisma.ApplicationGetPayload<object>): Appl
     createdAt: application.createdAt.toISOString(),
     verifiedAt: application.verifiedAt?.toISOString() ?? null,
     placedAt: application.placedAt?.toISOString() ?? null,
+    interviewDate: application.interviewDate?.toISOString().slice(0, 10) ?? null,
+    interviewTime: application.interviewTime,
+    interviewLocation: application.interviewLocation,
   };
 }
 
@@ -1068,6 +1071,9 @@ export async function getEmployerApplications(
     documents: application.documents,
     verifiedAt: application.verifiedAt?.toISOString() ?? null,
     placedAt: application.placedAt?.toISOString() ?? null,
+    interviewDate: application.interviewDate?.toISOString().slice(0, 10) ?? null,
+    interviewTime: application.interviewTime,
+    interviewLocation: application.interviewLocation,
   }));
 }
 
@@ -1161,6 +1167,9 @@ export async function updateEmployerApplication(input: {
   status?: string;
   verify?: boolean;
   place?: boolean;
+  interviewDate?: string | null;
+  interviewTime?: string | null;
+  interviewLocation?: string | null;
 }) {
   const application = await prisma.application.findFirst({
     where: { id: input.appId, ...(input.isAdmin ? {} : { opportunity: { postedById: input.employerId } }) },
@@ -1173,6 +1182,14 @@ export async function updateEmployerApplication(input: {
   }
 
   const nextStatus = input.place ? "successful" : input.status;
+  const interviewDate = input.interviewDate
+    ? new Date(`${input.interviewDate}T00:00:00.000Z`)
+    : input.interviewDate;
+  const statusChanged = Boolean(nextStatus && nextStatus !== application.status);
+  const interviewDetailsChanged =
+    (input.interviewDate !== undefined && (application.interviewDate?.toISOString().slice(0, 10) ?? null) !== input.interviewDate) ||
+    (input.interviewTime !== undefined && application.interviewTime !== input.interviewTime) ||
+    (input.interviewLocation !== undefined && application.interviewLocation !== input.interviewLocation);
   return prisma.$transaction(async (transaction) => {
     const updated = await transaction.application.update({
       where: { id: input.appId },
@@ -1180,18 +1197,21 @@ export async function updateEmployerApplication(input: {
         ...(nextStatus ? { status: nextStatus } : {}),
         ...(input.verify ? { verifiedAt: new Date(), verifiedBy: input.employerId } : {}),
         ...(input.place ? { placedAt: new Date(), placedBy: input.employerId } : {}),
+        ...(input.interviewDate !== undefined ? { interviewDate } : {}),
+        ...(input.interviewTime !== undefined ? { interviewTime: input.interviewTime } : {}),
+        ...(input.interviewLocation !== undefined ? { interviewLocation: input.interviewLocation } : {}),
       },
       include: {
         user: { select: { email: true, fullName: true } },
         opportunity: { select: { title: true } },
       },
     });
-    if (nextStatus && nextStatus !== application.status) {
+    if (statusChanged && nextStatus) {
       await transaction.applicationStatusHistory.create({
         data: { applicationId: updated.id, status: nextStatus, changedBy: input.employerId },
       });
     }
-    return updated;
+    return { ...updated, statusChanged, interviewDetailsChanged };
   });
 }
 

@@ -5,12 +5,21 @@ import { z } from "zod";
 import { addAuditEntry } from "@/lib/audit";
 import { authOptions } from "@/lib/auth";
 import { ApplicationClosingDateError, updateEmployerApplication } from "@/lib/database";
-import { sendApplicationUpdateEmail } from "@/lib/email";
+import { getApplicationNotificationEmail, sendApplicationUpdateEmail } from "@/lib/email";
+
+const interviewDateSchema = z.string().refine((value) => {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(value)) return false;
+  const date = new Date(`${value}T00:00:00.000Z`);
+  return !Number.isNaN(date.getTime()) && date.toISOString().slice(0, 10) === value;
+});
 
 const statusSchema = z.object({
   status: z.enum(["submitted", "under_review", "shortlisted", "interview", "accepted", "rejected", "successful", "unsuccessful"]).optional(),
   verify: z.boolean().optional(),
   place: z.boolean().optional(),
+  interviewDate: interviewDateSchema.nullable().optional(),
+  interviewTime: z.string().regex(/^(?:[01]\d|2[0-3]):[0-5]\d$/).nullable().optional(),
+  interviewLocation: z.string().trim().min(1).max(500).nullable().optional(),
 });
 
 export async function PATCH(
@@ -41,8 +50,16 @@ export async function PATCH(
       );
     }
 
-    if (!parsed.data.status && !parsed.data.verify && !parsed.data.place) {
+    const hasInterviewUpdate = parsed.data.interviewDate !== undefined ||
+      parsed.data.interviewTime !== undefined ||
+      parsed.data.interviewLocation !== undefined;
+    if (!parsed.data.status && !parsed.data.verify && !parsed.data.place && !hasInterviewUpdate) {
       return NextResponse.json({ error: "Choose a status or action." }, { status: 400 });
+    }
+    const interviewFields = [parsed.data.interviewDate, parsed.data.interviewTime, parsed.data.interviewLocation]
+      .filter((value) => value !== undefined);
+    if (hasInterviewUpdate && interviewFields.length !== 3) {
+      return NextResponse.json({ error: "Provide the interview date, time, and location together." }, { status: 400 });
     }
 
     const employerId = (session.user as { userId?: string } | undefined)?.userId;
@@ -54,6 +71,9 @@ export async function PATCH(
       status: parsed.data.status,
       verify: parsed.data.verify,
       place: parsed.data.place,
+      interviewDate: parsed.data.interviewDate,
+      interviewTime: parsed.data.interviewTime,
+      interviewLocation: parsed.data.interviewLocation,
     });
     if (!updated) {
       return NextResponse.json({ error: "Application not found." }, { status: 404 });
@@ -64,18 +84,25 @@ export async function PATCH(
       : parsed.data.verify
         ? "application_verified"
         : "application_status_changed";
-    let emailResult = { sent: false, reason: "Application updated, but the status email could not be sent." };
-    try {
-      emailResult = await sendApplicationUpdateEmail({
-        recipient: updated.user.email,
-        applicantName: updated.user.fullName,
-        opportunityTitle: updated.opportunity.title,
-        status: updated.status,
-        verified: Boolean(updated.verifiedAt),
-        placed: Boolean(updated.placedAt),
-      });
-    } catch (emailError) {
-      emailResult.reason = emailError instanceof Error ? emailError.message : emailResult.reason;
+    let emailResult: { sent: boolean } | null = null;
+    if (updated.statusChanged || updated.interviewDetailsChanged) {
+      emailResult = { sent: false };
+      try {
+        emailResult = await sendApplicationUpdateEmail({
+          recipient: updated.user.email,
+          replyTo: getApplicationNotificationEmail() ?? undefined,
+          applicantName: updated.user.fullName,
+          opportunityTitle: updated.opportunity.title,
+          status: updated.status,
+          placed: Boolean(updated.placedAt),
+          interviewDate: updated.interviewDate?.toISOString().slice(0, 10) ?? null,
+          interviewTime: updated.interviewTime,
+          interviewLocation: updated.interviewLocation,
+        });
+      } catch (emailError) {
+        const message = emailError instanceof Error ? emailError.message : "Email delivery failed.";
+        console.error("Applicant status email delivery failed:", message);
+      }
     }
 
     await addAuditEntry({
@@ -90,10 +117,17 @@ export async function PATCH(
       entityType: "application",
       entityId: updated.id,
       performedBy: employerId,
-      details: emailResult.reason,
+      details: emailResult
+        ? emailResult.sent
+          ? "Applicant status email sent."
+          : "Applicant status email failed; see server logs."
+        : "No applicant email needed for this update.",
     });
 
-    return NextResponse.json({ application: updated, ...(emailResult.sent ? {} : { emailWarning: emailResult.reason }) });
+    return NextResponse.json({
+      application: updated,
+      ...(emailResult?.sent ? { emailSent: true } : {}),
+    });
   } catch (error) {
     if (error instanceof ApplicationClosingDateError) {
       return NextResponse.json({ error: error.message }, { status: 409 });

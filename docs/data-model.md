@@ -47,10 +47,11 @@ The Application model links a learner to an opportunity and stores progression t
 - user: learner who applied
 - opportunity: target listing
 - status: submitted, under_review, shortlisted, interview, successful, unsuccessful
+- interviewDate, interviewTime, interviewLocation: optional interview schedule emailed to shortlisted applicants
 - matchScore: percentage based on required skill overlap
 - coverNote: learner's message to the employer
-- cvUrl: CV object-storage key emailed to the employer as an attachment
-- employerEmailSentAt, learnerEmailSentAt, emailError: delivery state used for retry and learner feedback
+- cvUrl: CV object-storage key emailed to the configured application notification inbox as an attachment
+- employerEmailSentAt, learnerEmailSentAt, emailError: delivery state used for retry and learner feedback; employerEmailSentAt tracks delivery to the configured application notification inbox
 - qualificationDocumentName: optional uploaded PDF, JPG, or PNG filename
 - extractedText: text returned by AI document extraction
 - extractedQualifications: credentials identified in the document

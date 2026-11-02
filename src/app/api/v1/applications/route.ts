@@ -163,10 +163,11 @@ async function submitEmployerGrantApplication(formData: FormData, userId: string
     details: `Applied to grant opportunity ${opportunityId}.`,
   });
 
-  let emailDelivery: { complete: boolean; employerSent: boolean; learnerSent: boolean; error: string | null } = {
+  let emailDelivery: { complete: boolean; employerSent: boolean; learnerSent: boolean; employerSkipped: boolean; error: string | null } = {
     complete: false,
     employerSent: false,
     learnerSent: false,
+    employerSkipped: false,
     error: "Email delivery could not be confirmed. You can retry it from your employer dashboard.",
   };
   try {
@@ -350,10 +351,11 @@ export async function POST(request: Request) {
       details: `Applied to opportunity ${parsed.data.opportunityId}`,
     });
 
-    let emailDelivery: { complete: boolean; employerSent: boolean; learnerSent: boolean; error: string | null } = {
+    let emailDelivery: { complete: boolean; employerSent: boolean; learnerSent: boolean; employerSkipped: boolean; error: string | null } = {
       complete: false,
       employerSent: false,
       learnerSent: false,
+      employerSkipped: false,
       error: "Email delivery could not be confirmed. Retry it from My Applications.",
     };
     try {
@@ -366,14 +368,20 @@ export async function POST(request: Request) {
       entityType: "application",
       entityId: application.id,
       performedBy: userId,
-      details: emailDelivery.complete ? "Employer and learner emails sent." : emailDelivery.error ?? "Email delivery pending.",
+      details: emailDelivery.complete ? "Application notification and learner emails sent." : emailDelivery.error ?? "Email delivery pending.",
     });
+    const applicantFailed = !emailDelivery.learnerSent;
+    const employerFailed = !emailDelivery.employerSent && !emailDelivery.employerSkipped;
     return NextResponse.json({
       application,
       emailDelivery,
-      message: emailDelivery.complete
+      message: !applicantFailed && !employerFailed
         ? "Application submitted. A confirmation email has been sent."
-        : "Application saved, but an email could not be sent. You can retry from My Applications.",
+        : applicantFailed && employerFailed
+          ? "Application saved, but the confirmation and employer notification emails could not be sent"
+          : applicantFailed
+            ? "Application saved, but the confirmation email could not be sent"
+            : "Application saved, but the employer notification email could not be sent",
     }, { status: 201 });
   } catch (error) {
     if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2002") {

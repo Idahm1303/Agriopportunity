@@ -1,43 +1,186 @@
+import "server-only";
+
+import { Resend } from "resend";
+import { z } from "zod";
+
 import { getFarmerEmailCopy } from "@/lib/notification-copy";
 
 type ApplicationEmailInput = {
   recipient: string;
+  replyTo?: string;
   applicantName: string;
   opportunityTitle: string;
   status: string;
-  verified: boolean;
+  verified?: boolean;
   placed: boolean;
+  interviewDate?: string | null;
+  interviewTime?: string | null;
+  interviewLocation?: string | null;
 };
 
 type ResendEmailInput = {
   recipient: string;
+  replyTo?: string;
+  from?: string;
+  failureLabel?: string;
   subject: string;
   text: string;
   attachment?: { filename: string; content: string };
 };
 
-async function sendResendEmail(input: ResendEmailInput) {
-  const apiKey = process.env.RESEND_API_KEY;
-  const from = process.env.EMAIL_FROM;
-  if (!apiKey || !from) return { sent: false, reason: "Email provider is not configured." };
-
-  const response = await fetch("https://api.resend.com/emails", {
-    method: "POST",
-    headers: { Authorization: `Bearer ${apiKey}`, "Content-Type": "application/json" },
-    body: JSON.stringify({
-      from,
-      to: [input.recipient],
-      subject: input.subject,
-      text: input.text,
-      ...(input.attachment ? { attachments: [input.attachment] } : {}),
-    }),
-  });
-  if (!response.ok) throw new Error(`Email provider rejected the message: ${await response.text()}`);
-  return { sent: true, reason: "Email sent." };
+export function getApplicationNotificationEmail() {
+  return process.env.APPLICATION_NOTIFICATION_EMAIL?.trim() || null;
 }
 
-export function sendApplicationToEmployer(input: {
-  recipient: string;
+const sender = "AgriOpportunity <onboarding@resend.dev>";
+const defaultReplyTo = "agriopportunity@gmail.com";
+const emailSchema = z.email();
+
+export function isValidEmailAddress(value: string | null | undefined) {
+  return Boolean(value && emailSchema.safeParse(value.trim()).success);
+}
+
+function logEmailFailure(input: ResendEmailInput, error: string) {
+  if (input.failureLabel) {
+    console.error(`${input.failureLabel} failed:`, { to: input.recipient, error });
+  } else {
+    console.error("Resend email delivery failed:", error);
+  }
+}
+
+function isRateLimitError(error: unknown) {
+  if (typeof error !== "object" || error === null) return false;
+  const errorWithStatus = error as { statusCode?: unknown; status?: unknown };
+  return errorWithStatus.statusCode === 429 || errorWithStatus.status === 429;
+}
+
+function wait(milliseconds: number) {
+  return new Promise((resolve) => setTimeout(resolve, milliseconds));
+}
+
+function escapeHtml(value: string) {
+  return value
+    .replaceAll("&", "&amp;")
+    .replaceAll("<", "&lt;")
+    .replaceAll(">", "&gt;")
+    .replaceAll('"', "&quot;")
+    .replaceAll("'", "&#39;");
+}
+
+function formatEmailHtml(text: string) {
+  return `<div style="font-family:Arial,sans-serif;line-height:1.6;color:#1f2937">${text
+    .split("\n\n")
+    .map((paragraph) => `<p>${escapeHtml(paragraph).replaceAll("\n", "<br>")}</p>`)
+    .join("")}</div>`;
+}
+
+async function sendResendEmail(input: ResendEmailInput) {
+  const intendedRecipient = input.recipient.trim();
+  if (!emailSchema.safeParse(intendedRecipient).success) {
+    const reason = "A valid recipient email address is required.";
+    logEmailFailure(input, reason);
+    return { sent: false, reason };
+  }
+
+  const apiKey = process.env.RESEND_API_KEY?.trim();
+  if (!apiKey) {
+    const reason = "RESEND_API_KEY is not configured.";
+    logEmailFailure(input, reason);
+    return { sent: false, reason };
+  }
+
+  const testMode = process.env.EMAIL_TEST_MODE === "true";
+  let recipient = intendedRecipient;
+  if (testMode) {
+    const testRecipient = process.env.TEST_EMAIL_RECIPIENT?.trim();
+    if (!testRecipient) {
+      const reason = "TEST_EMAIL_RECIPIENT is required when EMAIL_TEST_MODE is true.";
+      logEmailFailure(input, reason);
+      return { sent: false, reason };
+    }
+    if (!emailSchema.safeParse(testRecipient).success) {
+      const reason = "TEST_EMAIL_RECIPIENT must be a valid email address.";
+      logEmailFailure(input, reason);
+      return { sent: false, reason };
+    }
+    recipient = testRecipient;
+  }
+
+  const subject = testMode
+    ? `[TEST - intended for ${intendedRecipient}] ${input.subject}`
+    : input.subject;
+  const text = testMode ? `${input.text}\n\nIntended recipient: ${intendedRecipient}` : input.text;
+
+  const resend = new Resend(apiKey);
+  const replyTo = input.replyTo?.trim();
+  let retries = 0;
+  while (true) {
+    try {
+      const { data, error } = await resend.emails.send({
+        from: input.from ?? sender,
+        to: recipient,
+        replyTo: replyTo && emailSchema.safeParse(replyTo).success ? replyTo : defaultReplyTo,
+        subject,
+        text,
+        html: formatEmailHtml(text),
+        ...(input.attachment
+          ? { attachments: [{ filename: input.attachment.filename, content: input.attachment.content }] }
+          : {}),
+      });
+
+      if (error && isRateLimitError(error) && retries === 0) {
+        retries += 1;
+        await wait(1000);
+        continue;
+      }
+      if (error) {
+        logEmailFailure(input, error.message);
+        return { sent: false, reason: error.message };
+      }
+
+      if (data) return { sent: true, reason: "Email sent." };
+      const reason = "Resend did not confirm email delivery.";
+      logEmailFailure(input, reason);
+      return { sent: false, reason };
+    } catch (error) {
+      if (isRateLimitError(error) && retries === 0) {
+        retries += 1;
+        await wait(1000);
+        continue;
+      }
+      const reason = error instanceof Error ? error.message : "Email delivery failed.";
+      logEmailFailure(input, reason);
+      return { sent: false, reason };
+    }
+  }
+}
+
+export async function sendFeedbackEmail(input: {
+  to: string;
+  applicantName: string;
+  subject: string;
+  message: string;
+  fromName?: string;
+  replyTo?: string;
+  failureLabel?: string;
+}) {
+  const fromName = input.fromName
+    ?.replace(/["'<>\r\n\u2028\u2029]/g, "")
+    .trim() || "AgriOpportunity";
+  const replyTo = input.replyTo?.trim();
+  const result = await sendResendEmail({
+    recipient: input.to,
+    replyTo: replyTo && isValidEmailAddress(replyTo) ? replyTo : defaultReplyTo,
+    from: `${fromName} <onboarding@resend.dev>`,
+    failureLabel: input.failureLabel ?? "Feedback email",
+    subject: input.subject,
+    text: `Dear ${input.applicantName},\n\n${input.message}\n\n${fromName}`,
+  });
+  return { success: result.sent, error: result.sent ? null : result.reason };
+}
+
+export function sendApplicationNotification(input: {
+  recipient?: string;
   applicantName: string;
   applicantEmail: string;
   applicantPhone?: string | null;
@@ -47,8 +190,18 @@ export function sendApplicationToEmployer(input: {
   cvFileName: string;
   cvContent: string;
 }) {
+  const recipient = input.recipient ?? getApplicationNotificationEmail();
+  if (!recipient) {
+    return Promise.resolve({
+      sent: false,
+      reason: "APPLICATION_NOTIFICATION_EMAIL is not configured.",
+    });
+  }
+
   return sendResendEmail({
-    recipient: input.recipient,
+    recipient,
+    failureLabel: "Employer notification email",
+    replyTo: input.applicantEmail,
     subject: `New application: ${input.opportunityTitle}`,
     text: [
       `Applicant: ${input.applicantName}`,
@@ -63,23 +216,31 @@ export function sendApplicationToEmployer(input: {
   });
 }
 
+export function sendApplicationToEmployer(input: Parameters<typeof sendApplicationNotification>[0] & { recipient: string }) {
+  return sendApplicationNotification(input);
+}
+
 export function sendApplicationConfirmation(input: {
   recipient: string;
+  replyTo?: string;
   applicantName: string;
   opportunityTitle: string;
   organizationName: string;
   appliedAt: Date;
 }) {
-  return sendResendEmail({
-    recipient: input.recipient,
-    subject: `Application received: ${input.opportunityTitle}`,
-    text: [
-      `Hello ${input.applicantName},`,
-      "",
-      `You have applied for ${input.opportunityTitle} at ${input.organizationName} on ${input.appliedAt.toLocaleDateString("en-ZA", { dateStyle: "long" })}.`,
-      "Your application status is Submitted. You can track updates from My Applications in your AgriOpportunity dashboard.",
-    ].join("\n"),
-  });
+  const employerName = input.organizationName.trim() || "AgriOpportunity";
+  return sendFeedbackEmail({
+    to: input.recipient,
+    applicantName: input.applicantName,
+    fromName: employerName,
+    replyTo: input.replyTo,
+    failureLabel: "Applicant confirmation email",
+    subject: `Application received: ${input.opportunityTitle} at ${employerName}`,
+    message: `Thank you for applying for ${input.opportunityTitle} at ${employerName}. We confirm that we have received your application and will be in touch regarding next steps.\n\nKind regards,`,
+  }).then((result) => ({
+    sent: result.success,
+    reason: result.error ?? "Email sent.",
+  }));
 }
 
 export function sendGrantApplicationConfirmation(input: {
@@ -158,33 +319,45 @@ export function sendNewOpportunityMatchEmail(input: {
 }
 
 export async function sendApplicationUpdateEmail(input: ApplicationEmailInput) {
-  const outcome = input.placed
-    ? "You have been selected for placement."
-    : input.status === "shortlisted"
-      ? "You have been shortlisted for the next stage."
-      : input.status === "rejected"
-        ? "Your application has not been selected for this opportunity."
-        : input.status === "unsuccessful"
-          ? "Your application was not successful on this occasion."
-          : `Your application status is now ${input.status.replaceAll("_", " ")}.`;
+  const successful = input.status === "successful" || input.status === "accepted";
+  const shortlisted = input.status === "shortlisted" || input.status === "interview";
+  const unsuccessful = input.status === "rejected" || input.status === "unsuccessful";
+  const hasInterviewDetails = Boolean(input.interviewDate && input.interviewTime && input.interviewLocation);
+  const outcome = input.placed || successful
+    ? "Congratulations! Your application has been successful."
+    : shortlisted
+      ? "Congratulations! You have been shortlisted. We would like to invite you to an interview."
+      : unsuccessful
+        ? "Thank you for applying. Your application for this opportunity was unsuccessful."
+        : `Your application status is now ${input.status.replaceAll("_", " ")}.`;
 
-  return sendResendEmail({
-    recipient: input.recipient,
-    subject: input.placed
-      ? `Placement update: ${input.opportunityTitle}`
-      : input.status === "shortlisted"
+  return sendFeedbackEmail({
+    to: input.recipient,
+    applicantName: input.applicantName,
+    subject: input.placed || successful
+      ? `Successful application: ${input.opportunityTitle}`
+      : shortlisted
         ? `You have been shortlisted: ${input.opportunityTitle}`
-        : input.status === "rejected" || input.status === "unsuccessful"
+        : unsuccessful
           ? `Application outcome: ${input.opportunityTitle}`
           : `Application update: ${input.opportunityTitle}`,
-    text: [
-      `Hello ${input.applicantName},`,
-      "",
-      `There is an update to your application for ${input.opportunityTitle}.`,
+    message: [
+      `Regarding your application for ${input.opportunityTitle}:`,
       outcome,
-      `Status: ${input.status}`,
-      `Verified: ${input.verified ? "Yes" : "No"}`,
-      `Placement: ${input.placed ? "Placed" : "Not placed"}`,
+      ...(shortlisted && hasInterviewDetails
+        ? [
+            "",
+            "Interview details:",
+            `Date: ${input.interviewDate}`,
+            `Time: ${input.interviewTime}`,
+            `Location: ${input.interviewLocation}`,
+          ]
+        : shortlisted
+          ? ["We will contact you with the interview date, time, and location."]
+          : []),
     ].join("\n"),
-  });
+  }).then((result) => ({
+    sent: result.success,
+    reason: result.error ?? "Email sent.",
+  }));
 }

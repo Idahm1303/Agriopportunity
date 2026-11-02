@@ -84,7 +84,10 @@ export async function POST(request: Request) {
         storageKey = await uploadDocument({ file: document, userId, documentType: "qualification" });
       } catch (uploadError) {
         console.error("Qualification document upload failed", uploadError);
-        documentWarning = "Your profile was saved, but we could not store your document.";
+        return NextResponse.json(
+          { error: "Your qualification could not be stored, so it was not scanned and your profile was not saved. Please try again after document storage is available." },
+          { status: 503 },
+        );
       }
 
       try {
@@ -112,7 +115,7 @@ export async function POST(request: Request) {
       qualifications,
     });
 
-    if (hasDocument && (storageKey || extractedText !== undefined)) {
+    if (hasDocument) {
       await createDocument({
         userId,
         documentType: "qualification",

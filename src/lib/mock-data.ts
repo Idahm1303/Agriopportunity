@@ -81,6 +81,9 @@ export type Application = {
   createdAt: string;
   verifiedAt?: string | null;
   placedAt?: string | null;
+  interviewDate?: string | null;
+  interviewTime?: string | null;
+  interviewLocation?: string | null;
 };
 
 const users: User[] = [

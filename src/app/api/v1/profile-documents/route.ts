@@ -65,8 +65,8 @@ export async function POST(request: Request) {
     if (file.size > maximumSize) return NextResponse.json({ error: "The document must be smaller than 10 MB." }, { status: 400 });
 
     const typedDocument = documentType as "id_document" | "business_registration" | "funding_proof" | "certificate";
-    const extraction = await extractProfileDocument(file, typedDocument);
     const storageKey = await uploadDocument({ file, userId: auth.userId, documentType });
+    const extraction = await extractProfileDocument(file, typedDocument);
     const document = await createDocument({
       userId: auth.userId,
       documentType,

@@ -1,7 +1,8 @@
 import { downloadDocument } from "@/lib/object-storage";
 import {
   sendApplicationConfirmation,
-  sendApplicationToEmployer,
+  sendApplicationNotification,
+  isValidEmailAddress,
   sendGrantApplicationConfirmation,
   sendGrantApplicationToProvider,
 } from "@/lib/email";
@@ -11,6 +12,10 @@ function toRecord(value: unknown): Record<string, unknown> | null {
   return value && typeof value === "object" && !Array.isArray(value)
     ? value as Record<string, unknown>
     : null;
+}
+
+function wait(milliseconds: number) {
+  return new Promise((resolve) => setTimeout(resolve, milliseconds));
 }
 
 export async function deliverApplicationEmails(applicationId: string, learnerId: string) {
@@ -70,47 +75,68 @@ export async function deliverApplicationEmails(applicationId: string, learnerId:
     const learnerSent = Boolean(application.learnerEmailSentAt || sentAt.learnerEmailSentAt);
     const emailError = errors.length ? errors.join(" ") : null;
     await prisma.application.update({ where: { id: application.id }, data: { ...sentAt, emailError } });
-    return { employerSent, learnerSent, complete: employerSent && learnerSent, error: emailError };
+    return { employerSent, learnerSent, employerSkipped: false, complete: employerSent && learnerSent, error: emailError };
   }
 
   const sentAt: { employerEmailSentAt?: Date; learnerEmailSentAt?: Date } = {};
   const errors: string[] = [];
+  let employerSkipped = false;
+  let employerAttempted = false;
+  const employerName = application.opportunity.postedBy.organizationName ?? application.opportunity.postedBy.fullName;
+  const employerRecipient = [
+    application.opportunity.applicationEmail,
+    application.opportunity.postedBy.email,
+  ].find((email): email is string => isValidEmailAddress(email))?.trim() ?? null;
 
   if (!application.employerEmailSentAt) {
-    try {
-      if (!application.cvUrl || !application.coverNote) throw new Error("Application CV or cover note is missing.");
-      const cv = await downloadDocument(application.cvUrl);
-      const result = await sendApplicationToEmployer({
-        recipient: application.opportunity.applicationEmail ?? application.opportunity.postedBy.email,
-        applicantName: application.user.fullName,
-        applicantEmail: application.user.email,
-        applicantPhone: application.user.phoneNumber,
-        opportunityTitle: application.opportunity.title,
-        organizationName: application.opportunity.postedBy.organizationName ?? application.opportunity.postedBy.fullName,
-        coverNote: application.coverNote,
-        cvFileName: application.cvUrl.split("/").pop() ?? "learner-cv",
-        cvContent: Buffer.from(cv).toString("base64"),
-      });
-      if (result.sent) sentAt.employerEmailSentAt = new Date();
-      else errors.push(`Employer email: ${result.reason}`);
-    } catch (error) {
-      errors.push(`Employer email: ${error instanceof Error ? error.message : "Delivery failed."}`);
+    employerAttempted = true;
+    if (!employerRecipient) {
+      employerSkipped = true;
+      const warning = "Employer notification skipped: employer email is missing or invalid.";
+      console.warn(warning);
+      errors.push(warning);
+    } else {
+      try {
+        if (!application.cvUrl || !application.coverNote) throw new Error("Application CV or cover note is missing.");
+        const cv = await downloadDocument(application.cvUrl);
+        const result = await sendApplicationNotification({
+          recipient: employerRecipient,
+          applicantName: application.user.fullName,
+          applicantEmail: application.user.email,
+          applicantPhone: application.user.phoneNumber,
+          opportunityTitle: application.opportunity.title,
+          organizationName: employerName,
+          coverNote: application.coverNote,
+          cvFileName: application.cvUrl.split("/").pop() ?? "learner-cv",
+          cvContent: Buffer.from(cv).toString("base64"),
+        });
+        if (result.sent) sentAt.employerEmailSentAt = new Date();
+        else errors.push(`Employer notification email: ${result.reason}`);
+      } catch (error) {
+        const reason = error instanceof Error ? error.message : "Delivery failed.";
+        console.error("Employer notification email failed:", { to: employerRecipient, error: reason });
+        errors.push(`Employer notification email: ${reason}`);
+      }
     }
   }
 
   if (!application.learnerEmailSentAt) {
+    if (employerAttempted) await wait(600);
     try {
       const result = await sendApplicationConfirmation({
         recipient: application.user.email,
+        replyTo: employerRecipient ?? undefined,
         applicantName: application.user.fullName,
         opportunityTitle: application.opportunity.title,
-        organizationName: application.opportunity.postedBy.organizationName ?? application.opportunity.postedBy.fullName,
+        organizationName: employerName,
         appliedAt: application.createdAt,
       });
       if (result.sent) sentAt.learnerEmailSentAt = new Date();
-      else errors.push(`Confirmation email: ${result.reason}`);
+      else errors.push(`Applicant confirmation email: ${result.reason}`);
     } catch (error) {
-      errors.push(`Confirmation email: ${error instanceof Error ? error.message : "Delivery failed."}`);
+      const reason = error instanceof Error ? error.message : "Delivery failed.";
+      console.error("Applicant confirmation email failed:", { to: application.user.email, error: reason });
+      errors.push(`Applicant confirmation email: ${reason}`);
     }
   }
 
@@ -122,5 +148,5 @@ export async function deliverApplicationEmails(applicationId: string, learnerId:
     data: { ...sentAt, emailError },
   });
 
-  return { employerSent, learnerSent, complete: employerSent && learnerSent, error: emailError };
+  return { employerSent, learnerSent, employerSkipped, complete: employerSent && learnerSent, error: emailError };
 }

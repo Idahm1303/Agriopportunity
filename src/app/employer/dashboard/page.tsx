@@ -87,7 +87,7 @@ export default async function EmployerDashboardPage({ searchParams }: { searchPa
             </select>
           </label>
           <div className="flex items-end"><button className="w-full rounded-xl bg-forest px-4 py-2.5 text-sm font-semibold text-white hover:bg-leaf">Apply filters</button></div>
-          <p className="text-sm text-inkSoft sm:col-span-2 lg:col-span-4">Applicants are sorted from highest to lowest qualification match. Status changes email applicants automatically.</p>
+          <p className="text-sm text-inkSoft sm:col-span-2 lg:col-span-4">Applicants are sorted from highest to lowest qualification match. Shortlist and decline decisions, plus updated interview details, are emailed to applicants.</p>
         </form>
 
         <div id="application-list" className="scroll-mt-6 space-y-4">
@@ -128,7 +128,14 @@ export default async function EmployerDashboardPage({ searchParams }: { searchPa
                         <span className="rounded-full bg-goldSoft px-3 py-1 text-sm font-semibold text-ink">
                           {application.matchScore ?? 0}% qualification match
                         </span>
-                        <EmployerStatusControls applicationId={application.id} initialStatus={application.status} closingDate={application.opportunityClosingDate} />
+                        <EmployerStatusControls
+                          applicationId={application.id}
+                          initialStatus={application.status}
+                          closingDate={application.opportunityClosingDate}
+                          initialInterviewDate={application.interviewDate}
+                          initialInterviewTime={application.interviewTime}
+                          initialInterviewLocation={application.interviewLocation}
+                        />
                       </div>
                     </div>
                   </article>

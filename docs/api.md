@@ -61,7 +61,7 @@ Fetches the details of a single opportunity.
 
 ### POST /api/v1/applications
 
-Learners submit an application as `multipart/form-data` with `opportunityId`, a 10-2,000 character `coverNote`, a CV file (`cv`, PDF/DOC/DOCX up to 10 MB), and an optional `qualificationDocument` (PDF/JPG/PNG up to 10 MB). The application is saved before email delivery is attempted. The system emails the CV and application details to the opportunity's `applicationEmail`, and sends a confirmation to the learner. If delivery fails, the saved application response includes `emailDelivery.complete: false` and can be retried from `POST /api/v1/applications/[id]/retry-email`.
+Learners submit an application as `multipart/form-data` with `opportunityId`, a 10-2,000 character `coverNote`, a CV file (`cv`, PDF/DOC/DOCX up to 10 MB), and an optional `qualificationDocument` (PDF/JPG/PNG up to 10 MB). The application is saved before email delivery is attempted. The system emails the CV and application details to the opportunity's application email (or the employer's account email if none is set), then sends an applicant confirmation from the employer's display name, with the employer email as Reply-To. With `EMAIL_TEST_MODE=true`, both messages go to `TEST_EMAIL_RECIPIENT` and include the intended address in the subject/body. The development sender is `onboarding@resend.dev`; status updates use the shared notification inbox as Reply-To. Successful or accepted outcomes receive a congratulatory message. Employer grant applications continue to notify the grant opportunity provider. If delivery fails, the saved application response includes `emailDelivery.complete: false` and can be retried from `POST /api/v1/applications/[id]/retry-email`.
 
 Employers may use the same endpoint to apply to `funding` and `funding_call` opportunities. Grant submissions require company registration and SDL numbers, company address, province, contact details, requested amount, motivation, and supporting documents: CIPC registration, SARS tax-compliance status, SDL/levy evidence, a recent bank confirmation letter, WSP/ATR submission confirmation, company profile, latest financial statements or management accounts, and proposal with itemised budget. B-BBEE evidence is requested where applicable. Any call-specific documents configured in `eligibilityCriteria.requiredDocuments` are also required. Grant files are private and can be reviewed by the applicant and the opportunity publisher using `GET /api/v1/applications/[id]/documents/[documentId]`; do not put bank account numbers in form fields.
 
@@ -73,13 +73,16 @@ Returns applications for the current applicant, or received applications for the
 
 ### PATCH /api/v1/applications/[id]
 
-Employer/provider/admin updates application status. Values include `submitted`, `under_review`, `shortlisted`, `interview`, `accepted`, and `rejected`; the legacy `successful` and `unsuccessful` values remain supported. Each change is added to application status history and an email notification is attempted. If email delivery is unavailable or fails, the response includes an `emailWarning`.
+Employer/provider/admin updates application status. Values include `submitted`, `under_review`, `shortlisted`, `interview`, `accepted`, and `rejected`; the legacy `successful` and `unsuccessful` values remain supported. Actual status changes email the applicant by full name and opportunity title; shortlist emails can include an interview date, time, and place by providing all three `interviewDate` (`YYYY-MM-DD`), `interviewTime` (`HH:mm`), and `interviewLocation` fields. If interview details are omitted, the shortlist email says the details will follow. Rejected/unsuccessful decisions send a decline email. An `emailWarning` is returned if delivery fails.
 
 Request body:
 
 ```json
 {
-  "status": "under_review"
+  "status": "shortlisted",
+  "interviewDate": "2026-11-20",
+  "interviewTime": "10:30",
+  "interviewLocation": "AgriOpportunity offices, Pretoria"
 }
 ```
 
@@ -152,7 +155,7 @@ The OpenAPI 3.1 contract is maintained in [`openapi.yaml`](./openapi.yaml).
 - `PATCH /api/v1/profile/roles` persists the active role for future sign-ins. The requested role must already be granted.
 - `GET/POST /api/v1/profile-documents` supports farmer/SMME ID, registration, funding and certificate files. Files are uploaded with server-side AES-256 encryption. OCR data is stored as unconfirmed, ID numbers are masked in responses, and the applicant must explicitly confirm review. OCR never submits an application.
 - `GET /api/v1/opportunities?type=...&audience=...&province=...` filters visible listings. National opportunities are included when a province is selected.
-- Opening or reopening a farmer-targeted skills programme, funding call, funding opportunity, mentorship, bursary or learnership creates an in-app notification and attempts an email alert for matching farmer profiles. SMME programmes and funding calls alert matching SMME/co-operative profiles. Farmer alert email and in-app copy uses the account's preferred language; email uses the existing `RESEND_API_KEY` and `EMAIL_FROM` configuration.
+- Opening or reopening a farmer-targeted skills programme, funding call, funding opportunity, mentorship, bursary or learnership creates an in-app notification and attempts an email alert for matching farmer profiles. SMME programmes and funding calls alert matching SMME/co-operative profiles. Farmer alert email and in-app copy uses the account's preferred language; email uses `RESEND_API_KEY` and the Resend sender configured in `src/lib/email.ts`.
 - `POST /api/v1/notifications/[id]/read` marks one of the signed-in user's opportunity alerts as read. In-app alerts remain available if email delivery fails.
 
 Opportunity types are `job`, `learnership`, `bursary`, `funding`, `internship`, `graduate_placement`, `skills_programme`, `artisan`, `mentorship`, `research`, `smme_programme`, and `funding_call`. The original `category` field remains available for compatibility with existing clients.
