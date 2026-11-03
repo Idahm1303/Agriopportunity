@@ -4,6 +4,7 @@ import { Resend } from "resend";
 import { z } from "zod";
 
 import { getFarmerEmailCopy } from "@/lib/notification-copy";
+import { getPlatformSettings } from "@/lib/platform-settings";
 
 type ApplicationEmailInput = {
   recipient: string;
@@ -75,6 +76,11 @@ function formatEmailHtml(text: string) {
 }
 
 async function sendResendEmail(input: ResendEmailInput) {
+  const settings = await getPlatformSettings();
+  if (!settings.emailNotificationsEnabled) {
+    return { sent: false, reason: "Email notifications are disabled by an administrator." };
+  }
+
   const intendedRecipient = input.recipient.trim();
   if (!emailSchema.safeParse(intendedRecipient).success) {
     const reason = "A valid recipient email address is required.";

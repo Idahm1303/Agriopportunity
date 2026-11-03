@@ -24,6 +24,11 @@
 - **FR-20:** An administrator shall moderate any opportunity listing.
 - **FR-21:** An applicant shall save or remove an opportunity from a personal shortlist.
 - **FR-22:** A user shall be able to reset a forgotten password through a verified email link. This remains a planned production workflow because the MVP currently uses credentials authentication without an email delivery provider.
+- **FR-23:** Administrators shall search and filter user accounts, manage organisation verification, suspend/reactivate or soft-delete accounts, and assign/revoke roles.
+- **FR-24:** Administrators shall be able to search, filter, and securely download uploaded profile and application documents; each download shall be audited.
+- **FR-25:** Administrator accounts shall not create applicant or organisation profiles or switch into applicant roles.
+- **FR-26:** Administrators shall configure registration access, enabled opportunity types, email notifications, public contact/branding details, and bounded login-attempt lockout settings.
+- **FR-27:** Administrators shall monitor database availability and document-storage configuration.
 
 ## 2. Non-functional requirements
 
@@ -33,6 +38,8 @@
 - **Accessibility:** Interfaces shall use semantic HTML, keyboard-accessible controls, visible focus states, labels, and basic WCAG 2.1 AA contrast practices where feasible within the WIL scope.
 - **Privacy and retention:** Applicant identity and document data shall be collected with explicit consent. Production retention periods for `id_number` and uploaded documents must be approved with the POPIA data owner; the MVP flags this policy for production rather than silently defining a legal retention period.
 - **Auditability:** Moderation, employer verification, application changes, and fraud reports shall be recorded with actor and timestamp.
+- **Administrator document access:** Uploaded documents remain private and are served only to authorized users through authenticated, no-store download routes. Administrator document downloads are recorded in the audit log.
+- **Account lifecycle:** Suspended and soft-deleted accounts cannot sign in. Soft deletion preserves applications, documents, and audit history. At least one active administrator must remain.
 - **Scope discipline:** Payments, WSP-ATR workflows, Connect ME/CRM synchronization, and SMS/WhatsApp notifications remain outside the MVP.
 
 ## 3. Scope decisions and future work

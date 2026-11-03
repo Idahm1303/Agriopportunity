@@ -13,6 +13,7 @@ export default async function SmmeProfilePage() {
   const userId = (session?.user as { userId?: string } | undefined)?.userId;
   if (!userId) redirect("/login?callbackUrl=%2Fprofile%2Fsmme");
   const roles = await getUserRoles(userId);
+  if (roles.includes("ADMIN")) redirect("/admin/dashboard");
   if (!roles.includes("SMME") && !roles.includes("COOPERATIVE")) redirect("/dashboard");
   const activeRole = (session?.user as { role?: string } | undefined)?.role;
   const onboarding = await getFarmBusinessOnboardingStatus(userId, activeRole === "COOPERATIVE" ? "COOPERATIVE" : "SMME");

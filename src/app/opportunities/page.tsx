@@ -3,6 +3,7 @@ import { getServerSession } from "next-auth";
 
 import { authOptions } from "@/lib/auth";
 import { findUserById, getFarmBusinessOnboardingStatus, getProfileRecommendations, isLearnerProfileComplete, listOpportunities } from "@/lib/database";
+import { getPlatformSettings } from "@/lib/platform-settings";
 import type { Role } from "@/lib/mock-data";
 import { redirect } from "next/navigation";
 
@@ -29,9 +30,10 @@ export default async function OpportunitiesPage({
   const initialCategory = category ?? (
     sessionUser?.role === "SMME" || sessionUser?.role === "COOPERATIVE" ? "smme_programme" : "job"
   );
-  const [opportunities, learner] = await Promise.all([
+  const [opportunities, learner, settings] = await Promise.all([
     userId ? getProfileRecommendations(userId, sessionUser?.role as Role | undefined) : listOpportunities(),
     userId ? findUserById(userId) : Promise.resolve(undefined),
+    getPlatformSettings(),
   ]);
 
   return (
@@ -54,6 +56,7 @@ export default async function OpportunitiesPage({
         onlyMatched={matched === "true"}
         initialAudience={audience ?? ""}
         initialProvince={province ?? ""}
+        enabledOpportunityTypes={settings.enabledOpportunityTypes}
       />
     </main>
   );

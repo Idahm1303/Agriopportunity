@@ -26,6 +26,10 @@ async function getUserId() {
 export async function POST(request: Request) {
   const userId = await getUserId();
   if (!userId) return NextResponse.json({ error: "Authentication required." }, { status: 401 });
+  const assignedRoles = await getUserRoles(userId);
+  if (assignedRoles.includes("ADMIN")) {
+    return NextResponse.json({ error: "Administrator accounts cannot add applicant or organisation roles." }, { status: 403 });
+  }
   const body = await readBody(request);
   const parsed = roleSchema.safeParse(body);
   if (!parsed.success) return NextResponse.json({ error: "Choose a supported role." }, { status: 400 });
@@ -40,6 +44,10 @@ export async function PATCH(request: Request) {
   const body = await readBody(request);
   const parsed = activeRoleSchema.safeParse(body);
   if (!parsed.success) return NextResponse.json({ error: "Choose a supported active role." }, { status: 400 });
+  const assignedRoles = await getUserRoles(userId);
+  if (assignedRoles.includes("ADMIN") && parsed.data.role !== "ADMIN") {
+    return NextResponse.json({ error: "Administrator accounts cannot switch to applicant or organisation roles." }, { status: 403 });
+  }
   const updated = await setUserActiveRole(userId, parsed.data.role);
   if (!updated) return NextResponse.json({ error: "You do not have this role." }, { status: 403 });
   return NextResponse.json({ role: parsed.data.role, roles: await getUserRoles(userId) });

@@ -10,6 +10,7 @@ import { redirect } from "next/navigation";
 import { authOptions } from "@/lib/auth";
 import { findUserById, getEmployerApplications, getEmployerFundingOpportunities, getEmployerOpportunities, getUserGrantApplications } from "@/lib/database";
 import { opportunityTypeLabels, opportunityTypes } from "@/lib/agri-options";
+import { getPlatformSettings } from "@/lib/platform-settings";
 import { additionalGrantDocuments, standardGrantDocuments } from "@/lib/grant-application";
 
 function eligibilityDescription(value: unknown) {
@@ -28,6 +29,7 @@ export default async function EmployerDashboardPage({ searchParams }: { searchPa
   const role = (session?.user as { role?: string } | undefined)?.role;
   if (!session) redirect("/login?callbackUrl=/employer/dashboard");
   if (role !== "EMPLOYER" && role !== "PROVIDER" && role !== "ADMIN") redirect("/dashboard");
+  const platformSettings = await getPlatformSettings();
   const employer = userId ? await findUserById(userId) : undefined;
   const [applications, opportunities, grantOpportunities, grantApplications] = userId
     ? await Promise.all([
@@ -64,7 +66,7 @@ export default async function EmployerDashboardPage({ searchParams }: { searchPa
             <Link href="/employer/dashboard?category=all&field=all&verification=all#application-list" className="inline-flex min-h-11 items-center justify-center rounded-xl border border-forest/20 px-4 py-2 text-sm font-semibold text-forest transition hover:bg-cream2">
               See all applications
             </Link>
-            <EmployerOpportunityForm />
+            <EmployerOpportunityForm enabledOpportunityTypes={platformSettings.enabledOpportunityTypes} />
           </div>
         </div>
 
@@ -245,6 +247,7 @@ export default async function EmployerDashboardPage({ searchParams }: { searchPa
               <div><p className="font-medium text-ink">{opportunity.title}</p><p className="text-sm text-inkSoft">{opportunity.category} · {opportunity.status} · {opportunity.location ?? "Remote / flexible"}</p></div>
               <EmployerOpportunityControls
                 opportunityId={opportunity.id}
+                enabledOpportunityTypes={platformSettings.enabledOpportunityTypes}
                 status={opportunity.status}
                 title={opportunity.title}
                 description={opportunity.description}

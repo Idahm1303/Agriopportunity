@@ -2,7 +2,8 @@ import type { NextAuthOptions } from "next-auth";
 import CredentialsProvider from "next-auth/providers/credentials";
 import { compare } from "bcryptjs";
 
-import { findUserByEmail, getUserRoles } from "@/lib/database";
+import { findUserByEmail, findUserById, getUserRoles } from "@/lib/database";
+import { clearFailedLogins, getPlatformSettings, isLoginLocked, recordFailedLogin } from "@/lib/platform-settings";
 
 const useSecureCookies = process.env.NEXTAUTH_URL?.startsWith("https://") ?? false;
 
@@ -33,8 +34,13 @@ export const authOptions: NextAuthOptions = {
           return null;
         }
 
-        const user = await findUserByEmail(String(credentials.email));
-        if (!user) {
+        const email = String(credentials.email).trim().toLowerCase();
+        const settings = await getPlatformSettings();
+        if (await isLoginLocked(email)) return null;
+
+        const user = await findUserByEmail(email);
+        if (!user || user.accountStatus !== "active") {
+          if (!user) await recordFailedLogin(email, settings);
           return null;
         }
 
@@ -44,9 +50,11 @@ export const authOptions: NextAuthOptions = {
         );
 
         if (!validPassword) {
+          await recordFailedLogin(email, settings);
           return null;
         }
 
+        await clearFailedLogins(email);
         const roles = await getUserRoles(user.id);
         return {
           id: user.id,
@@ -66,16 +74,33 @@ export const authOptions: NextAuthOptions = {
         token.userId = (user as { id?: string }).id;
         token.roles = (user as { roles?: string[] }).roles ?? [(user as { role?: string }).role ?? "LEARNER"];
       }
-      if (trigger === "update" && typeof session?.activeRole === "string") {
-        const roles = await getUserRoles(String(token.userId));
-        if (roles.some((role) => role === session.activeRole)) token.role = session.activeRole;
-        token.roles = roles;
+      if (typeof token.userId === "string") {
+        const currentUser = await findUserById(token.userId);
+        if (!currentUser || currentUser.accountStatus !== "active") {
+          token.userId = undefined;
+          token.role = undefined;
+          token.roles = [];
+          token.accountStatus = currentUser?.accountStatus ?? "deleted";
+        } else {
+          const roles = await getUserRoles(token.userId);
+          token.roles = roles;
+          if (!roles.some((role) => role === token.role)) token.role = currentUser.role;
+          if (roles.includes("ADMIN")) {
+            token.role = "ADMIN";
+          } else if (trigger === "update" && typeof session?.activeRole === "string") {
+            const activeRole = roles.find((role) => role === session.activeRole);
+            if (activeRole) token.role = activeRole;
+          }
+          token.accountStatus = currentUser.accountStatus;
+        }
       }
 
       return token;
     },
     async session({ session, token }) {
-      if (session.user) {
+      if (token.accountStatus !== "active") {
+        session.user = undefined;
+      } else if (session.user) {
         (session.user as { role?: string }).role = token.role as string | undefined;
         (session.user as { userId?: string }).userId = token.userId as string | undefined;
         (session.user as { roles?: string[] }).roles = token.roles as string[] | undefined;

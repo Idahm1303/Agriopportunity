@@ -1,14 +1,21 @@
 "use client";
 
-import { getSession, signIn } from "next-auth/react";
+import { getSession, signIn, signOut } from "next-auth/react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useState } from "react";
+import { use, useState } from "react";
 
 import { dashboardForRole } from "@/lib/role-routing";
 
-export default function LoginPage() {
+export default function LoginPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ role?: string | string[] }>;
+}) {
   const router = useRouter();
+  const query = use(searchParams);
+  const requestedRole = Array.isArray(query.role) ? query.role[0] : query.role;
+  const isAdministratorLogin = requestedRole === "ADMIN";
   const [form, setForm] = useState({ email: "", password: "" });
   const [error, setError] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -35,7 +42,15 @@ export default function LoginPage() {
     }
 
     const session = await getSession();
-    router.push(dashboardForRole((session?.user as { role?: string } | undefined)?.role));
+    const role = (session?.user as { role?: string } | undefined)?.role;
+    if (isAdministratorLogin && role !== "ADMIN") {
+      await signOut({ redirect: false });
+      setError("This account does not have administrator access.");
+      setIsSubmitting(false);
+      return;
+    }
+
+    router.push(isAdministratorLogin ? "/admin/dashboard" : dashboardForRole(role));
     router.refresh();
     setIsSubmitting(false);
   };
@@ -48,16 +63,24 @@ export default function LoginPage() {
             A
           </div>
           <p className="mt-6 text-sm font-semibold uppercase tracking-[0.2em] text-goldSoft">Welcome back</p>
-          <h1 className="mt-4 font-display text-4xl text-cream lg:text-5xl">Log in to continue</h1>
+          <h1 className="mt-4 font-display text-4xl text-cream lg:text-5xl">
+            {isAdministratorLogin ? "Administrator sign in" : "Log in to continue"}
+          </h1>
           <p className="mt-5 max-w-md text-base leading-7 text-cream/90">
-            Sign in with your email and password to manage employer listings and applicants or track your learner applications.
+            {isAdministratorLogin
+              ? "Sign in with your administrator account to access the Agriopportunity control centre."
+              : "Sign in with your email and password to manage employer listings and applicants or track your learner applications."}
           </p>
         </div>
 
         <form onSubmit={handleSubmit} className="space-y-5 p-8 lg:p-12">
           <div>
-            <p className="text-sm font-semibold uppercase tracking-[0.2em] text-leaf">Account access</p>
-            <h2 className="mt-3 font-display text-3xl text-forest">Sign in</h2>
+            <p className="text-sm font-semibold uppercase tracking-[0.2em] text-leaf">
+              {isAdministratorLogin ? "Administrator access" : "Account access"}
+            </p>
+            <h2 className="mt-3 font-display text-3xl text-forest">
+              {isAdministratorLogin ? "Administrator sign in" : "Sign in"}
+            </h2>
           </div>
 
           <div>
@@ -91,9 +114,20 @@ export default function LoginPage() {
             disabled={isSubmitting}
             className="inline-flex w-full items-center justify-center rounded-full bg-forest px-5 py-3.5 font-medium text-cream shadow-lg shadow-forest/15 transition hover:bg-leaf disabled:cursor-not-allowed disabled:opacity-60 focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-goldSoft"
           >
-            {isSubmitting ? "Signing in..." : "Log in"}
+            {isSubmitting
+              ? "Signing in..."
+              : isAdministratorLogin
+                ? "Log in as administrator"
+                : "Log in"}
           </button>
 
+          <p className="text-sm text-inkSoft">
+            {isAdministratorLogin ? (
+              <>Signing in as a user? <Link href="/login" className="font-medium text-forest underline">Go to user login</Link></>
+            ) : (
+              <>Administrator? <Link href="/login?role=ADMIN" className="font-medium text-forest underline">Log in as an administrator</Link></>
+            )}
+          </p>
           <p className="text-sm text-inkSoft">
             Need an account? <Link href="/register" className="font-medium text-forest underline">Register</Link>
           </p>

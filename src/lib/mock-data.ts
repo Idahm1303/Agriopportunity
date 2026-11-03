@@ -29,6 +29,7 @@ export type User = {
   preferredLanguage?: string;
   skills: string[];
   qualifications: string[];
+  accountStatus?: string;
   createdAt: string;
 };
 
@@ -96,6 +97,7 @@ const users: User[] = [
     location: "Pretoria",
     skills: ["Crop science", "Irrigation", "Data capture", "Farm operations"],
     qualifications: ["National Diploma: Agriculture", "FET Certificate: Plant Production"],
+    accountStatus: "active",
     createdAt: new Date().toISOString(),
   },
   {

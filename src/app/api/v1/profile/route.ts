@@ -3,7 +3,7 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 
 import { authOptions } from "@/lib/auth";
-import { createDocument, findUserById, updateUserProfile } from "@/lib/database";
+import { createDocument, findUserById, getUserRoles, updateUserProfile } from "@/lib/database";
 import { learnerSkillOptions } from "@/lib/agri-options";
 import { extractQualification, qualificationDocumentType, type ExtractionMethod } from "@/lib/qualification-ocr";
 import { uploadDocument } from "@/lib/object-storage";
@@ -34,6 +34,9 @@ export async function POST(request: Request) {
 
   if (!userId) {
     return NextResponse.json({ error: "Authentication required." }, { status: 401 });
+  }
+  if ((await getUserRoles(userId)).includes("ADMIN")) {
+    return NextResponse.json({ error: "Administrator accounts cannot create or update applicant profiles." }, { status: 403 });
   }
 
   try {
@@ -151,6 +154,9 @@ export async function GET() {
 
   if (!userId) {
     return NextResponse.json({ error: "Authentication required." }, { status: 401 });
+  }
+  if ((await getUserRoles(userId)).includes("ADMIN")) {
+    return NextResponse.json({ error: "Administrator accounts do not have applicant profiles." }, { status: 403 });
   }
 
   const user = await findUserById(userId);

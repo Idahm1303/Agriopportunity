@@ -3,6 +3,7 @@
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { opportunityTypeLabels, opportunityTypes, provinces } from "@/lib/agri-options";
+import type { OpportunityType } from "@/lib/mock-data";
 
 type OpportunityEditorData = {
   opportunityId: string;
@@ -21,6 +22,7 @@ type OpportunityEditorData = {
   applyUrl?: string | null;
   requiredSkills?: string[];
   expiresAt?: string;
+  enabledOpportunityTypes?: OpportunityType[];
 };
 
 function eligibilityDetails(value: unknown) {
@@ -34,12 +36,16 @@ function eligibilityDetails(value: unknown) {
   };
 }
 
-export function EmployerOpportunityControls({ opportunityId, status, title, description, category, type, applicationEmail, location, province, targetAudience, closingDate, fundingAmountRange, eligibilityCriteria, applyUrl, requiredSkills, expiresAt }: OpportunityEditorData) {
+export function EmployerOpportunityControls({ opportunityId, status, title, description, category, type, applicationEmail, location, province, targetAudience, closingDate, fundingAmountRange, eligibilityCriteria, applyUrl, requiredSkills, expiresAt, enabledOpportunityTypes = opportunityTypes }: OpportunityEditorData) {
   const router = useRouter();
   const [message, setMessage] = useState<string | null>(null);
   const [isEditing, setIsEditing] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const canEdit = title !== undefined && description !== undefined && category !== undefined && applicationEmail !== undefined && requiredSkills !== undefined;
+  const existingType = type ?? category;
+  const editorTypes = existingType && opportunityTypes.includes(existingType as OpportunityType) && !enabledOpportunityTypes.includes(existingType as OpportunityType)
+    ? [existingType as OpportunityType, ...enabledOpportunityTypes]
+    : enabledOpportunityTypes;
   const currentEligibility = eligibilityDetails(eligibilityCriteria);
   const nextStatus = status === "open" ? "closed" : "open";
 
@@ -138,7 +144,7 @@ export function EmployerOpportunityControls({ opportunityId, status, title, desc
       {isEditing ? (
         <form onSubmit={saveDetails} className="mt-3 grid w-full gap-3 rounded-xl border border-forest/10 bg-white p-4 sm:grid-cols-2">
           <label className="text-sm font-medium text-ink">Title<input name="title" defaultValue={title ?? ""} required minLength={3} maxLength={160} className="mt-1 w-full rounded-lg border border-inkSoft/20 px-3 py-2" /></label>
-          <label className="text-sm font-medium text-ink">Opportunity type<select name="type" defaultValue={type ?? category ?? "job"} className="mt-1 w-full rounded-lg border border-inkSoft/20 px-3 py-2">{opportunityTypes.map((item) => <option key={item} value={item}>{opportunityTypeLabels[item]}</option>)}</select></label>
+          <label className="text-sm font-medium text-ink">Opportunity type<select name="type" defaultValue={type ?? category ?? enabledOpportunityTypes[0] ?? "job"} className="mt-1 w-full rounded-lg border border-inkSoft/20 px-3 py-2">{editorTypes.map((item) => <option key={item} value={item}>{opportunityTypeLabels[item]}{!enabledOpportunityTypes.includes(item) ? " (disabled)" : ""}</option>)}</select></label>
           <label className="text-sm font-medium text-ink sm:col-span-2">Description<textarea name="description" defaultValue={description ?? ""} required minLength={20} maxLength={10000} rows={4} className="mt-1 w-full rounded-lg border border-inkSoft/20 px-3 py-2" /></label>
           <label className="text-sm font-medium text-ink">Application email<input name="applicationEmail" type="email" defaultValue={applicationEmail ?? ""} required className="mt-1 w-full rounded-lg border border-inkSoft/20 px-3 py-2" /></label>
           <label className="text-sm font-medium text-ink">Town or district<input name="location" defaultValue={location ?? ""} maxLength={160} className="mt-1 w-full rounded-lg border border-inkSoft/20 px-3 py-2" /></label>

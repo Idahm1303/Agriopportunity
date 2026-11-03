@@ -8,6 +8,12 @@ import { useEffect, useState, useSyncExternalStore } from "react";
 import { roles } from "@/lib/agri-options";
 import { dashboardForRole } from "@/lib/role-routing";
 
+type PublicBranding = {
+  siteName: string;
+  contactEmail: string;
+  contactPhone: string;
+};
+
 const roleLabels: Record<string, string> = {
   LEARNER: "Learner",
   FARMER: "Farmer",
@@ -37,15 +43,42 @@ export function SiteHeader() {
   const pathname = usePathname();
   const [isSwitching, setIsSwitching] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [branding, setBranding] = useState<PublicBranding>({
+    siteName: "AgriOpportunity",
+    contactEmail: "",
+    contactPhone: "",
+  });
   const dataSaver = useSyncExternalStore(subscribeToDataSaver, getDataSaverSnapshot, () => false);
   const user = session?.user as { role?: string; roles?: string[] } | undefined;
   const activeRole = user?.role ?? "";
   const assignedRoles = user?.roles ?? (activeRole ? [activeRole] : []);
-  const canExploreOpportunities = activeRole !== "EMPLOYER" && activeRole !== "PROVIDER";
+  const canExploreOpportunities = !["EMPLOYER", "PROVIDER", "ADMIN"].includes(activeRole);
 
   useEffect(() => {
     document.documentElement.dataset.dataSaver = dataSaver ? "on" : "off";
   }, [dataSaver]);
+
+  useEffect(() => {
+    let active = true;
+    fetch("/api/v1/settings/public")
+      .then(async (response) => {
+        const settings = await response.json();
+        if (!response.ok) throw new Error(settings.error ?? "Unable to load public site settings.");
+        if (active) {
+          setBranding({
+            siteName: settings.siteName,
+            contactEmail: settings.contactEmail,
+            contactPhone: settings.contactPhone,
+          });
+        }
+      })
+      .catch((settingsError: unknown) => {
+        console.error("Unable to load public site settings:", settingsError);
+      });
+    return () => {
+      active = false;
+    };
+  }, []);
 
   const toggleDataSaver = () => {
     const enabled = !dataSaver;
@@ -90,8 +123,10 @@ export function SiteHeader() {
   return (
     <header className="border-b border-white/15 bg-forest text-white">
       <div className="mx-auto flex max-w-6xl flex-wrap items-center justify-between gap-3 px-4 py-4 sm:px-6 lg:px-8">
-        <Link href="/" className="font-display text-2xl tracking-tight">AgriOpportunity</Link>
+        <Link href="/" className="font-display text-2xl tracking-tight">{branding.siteName}</Link>
         <nav aria-label="Main navigation" className="flex flex-wrap items-center gap-2 text-sm font-medium">
+          {branding.contactEmail ? <a href={`mailto:${branding.contactEmail}`} className="rounded-full border border-white/25 px-3 py-2 text-white/90 hover:bg-leaf">Contact</a> : null}
+          {branding.contactPhone ? <a href={`tel:${branding.contactPhone}`} className="rounded-full border border-white/25 px-3 py-2 text-white/90 hover:bg-leaf">{branding.contactPhone}</a> : null}
           <button
             type="button"
             aria-pressed={dataSaver}
@@ -109,14 +144,17 @@ export function SiteHeader() {
             <>
               {canExploreOpportunities ? <Link href="/opportunities" className="rounded-full border border-goldSoft/70 px-3 py-2 text-white/90 hover:bg-leaf">Explore opportunities</Link> : null}
               <Link href={dashboardForRole(activeRole)} className="rounded-full border border-goldSoft/70 px-3 py-2 text-white/90 hover:bg-leaf">Dashboard</Link>
-              <label className="flex items-center gap-2 rounded-full border border-white/25 px-3 py-1.5">
-                <span className="sr-only">Active role</span>
-                <select value={activeRole} disabled={isSwitching} onChange={(event) => void switchRole(event.target.value)} className="max-w-40 bg-forest text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-goldSoft">
-                  {roles.map((role) => <option key={role} value={role}>{roleLabels[role]}{assignedRoles.includes(role) ? "" : " (add role)"}</option>)}
-                  {assignedRoles.includes("ADMIN") && !roles.includes("ADMIN" as typeof roles[number]) ? <option value="ADMIN">Admin</option> : null}
-                </select>
-                {isSwitching ? <span aria-live="polite" className="text-xs text-goldSoft">Saving</span> : null}
-              </label>
+              {assignedRoles.includes("ADMIN") ? (
+                <span className="rounded-full border border-white/25 px-3 py-2 text-white/90">Administrator</span>
+              ) : (
+                <label className="flex items-center gap-2 rounded-full border border-white/25 px-3 py-1.5">
+                  <span className="sr-only">Active role</span>
+                  <select value={activeRole} disabled={isSwitching} onChange={(event) => void switchRole(event.target.value)} className="max-w-40 bg-forest text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-goldSoft">
+                    {roles.map((role) => <option key={role} value={role}>{roleLabels[role]}{assignedRoles.includes(role) ? "" : " (add role)"}</option>)}
+                  </select>
+                  {isSwitching ? <span aria-live="polite" className="text-xs text-goldSoft">Saving</span> : null}
+                </label>
+              )}
             </>
           ) : (
             <>

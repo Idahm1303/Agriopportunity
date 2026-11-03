@@ -31,6 +31,9 @@ model User {
   reports                 Report[]
   savedOpportunities      SavedOpportunity[]
   roles                   UserRole[]
+  accountStatus           String             @default("active")
+  accountStatusReason     String?
+  accountStatusChangedAt  DateTime?
   farmerProfile           FarmerProfile?
   smmeProfile             SmmeProfile?
   smmeDiagnostics         SmmeDiagnostic[]
@@ -281,4 +284,23 @@ model AuditLog {
   performedBy String?
   details     String?
   createdAt   DateTime @default(now())
+}
+
+model SystemSetting {
+  key       String   @id
+  value     Json
+  updatedBy String?
+  updatedAt DateTime @default(now()) @updatedAt
+
+  @@map("system_settings")
+}
+
+model LoginAttempt {
+  emailHash       String   @id
+  attempts        Int      @default(0)
+  windowStartedAt DateTime @default(now())
+  lockedUntil     DateTime?
+  updatedAt       DateTime @default(now()) @updatedAt
+
+  @@map("login_attempts")
 }

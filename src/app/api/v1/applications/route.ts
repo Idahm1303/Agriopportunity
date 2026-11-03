@@ -11,6 +11,7 @@ import { prisma } from "@/lib/prisma";
 import { extractQualification, qualificationDocumentType } from "@/lib/qualification-ocr";
 import { uploadDocument } from "@/lib/object-storage";
 import { additionalGrantDocuments, standardGrantDocuments } from "@/lib/grant-application";
+import { getPlatformSettings } from "@/lib/platform-settings";
 import type { Role } from "@/lib/mock-data";
 
 const applicationSchema = z.object({
@@ -63,6 +64,10 @@ async function submitEmployerGrantApplication(formData: FormData, userId: string
   });
   if (!opportunity || !["funding", "funding_call"].includes(opportunity.type)) {
     return NextResponse.json({ error: "This is not a funding grant opportunity." }, { status: 404 });
+  }
+  const platformSettings = await getPlatformSettings();
+  if (!platformSettings.enabledOpportunityTypes.includes(opportunity.type)) {
+    return NextResponse.json({ error: "This funding opportunity type is currently disabled." }, { status: 409 });
   }
   if (opportunity.postedById === userId) {
     return NextResponse.json({ error: "You cannot apply to a grant published by your own organisation." }, { status: 403 });
@@ -256,9 +261,13 @@ export async function POST(request: Request) {
 
     const opportunity = await prisma.opportunity.findUnique({
       where: { id: parsed.data.opportunityId },
-      select: { status: true, expiresAt: true, closingDate: true },
+      select: { type: true, status: true, expiresAt: true, closingDate: true },
     });
     if (!opportunity) return NextResponse.json({ error: "Opportunity not found." }, { status: 404 });
+    const platformSettings = await getPlatformSettings();
+    if (!platformSettings.enabledOpportunityTypes.includes(opportunity.type)) {
+      return NextResponse.json({ error: "This opportunity type is currently disabled." }, { status: 409 });
+    }
     if (opportunity.status !== "open" ||
       (opportunity.expiresAt && opportunity.expiresAt <= new Date()) ||
       (opportunity.closingDate && opportunity.closingDate <= new Date())) {

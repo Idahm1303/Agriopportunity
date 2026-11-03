@@ -3,8 +3,13 @@
 import { useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { opportunityTypeLabels, opportunityTypes, provinces } from "@/lib/agri-options";
+import type { OpportunityType } from "@/lib/mock-data";
 
-export function EmployerOpportunityForm() {
+export function EmployerOpportunityForm({
+  enabledOpportunityTypes = opportunityTypes,
+}: {
+  enabledOpportunityTypes?: OpportunityType[];
+}) {
   const router = useRouter();
   const closingDateInput = useRef<HTMLInputElement>(null);
   const [open, setOpen] = useState(false);
@@ -107,7 +112,7 @@ export function EmployerOpportunityForm() {
           <input name="title" placeholder="Opportunity title" required className="rounded-xl border border-inkSoft/20 bg-white px-3 py-3 text-ink" />
           <label className="text-sm font-medium text-ink">Opportunity type
             <select name="type" required defaultValue="job" className="mt-1 w-full rounded-xl border border-inkSoft/20 bg-white px-3 py-3 text-ink">
-              {opportunityTypes.map((type) => <option key={type} value={type}>{opportunityTypeLabels[type]}</option>)}
+              {enabledOpportunityTypes.map((type) => <option key={type} value={type}>{opportunityTypeLabels[type]}</option>)}
             </select>
           </label>
           <input name="applicationEmail" type="email" required placeholder="Email for applications" className="rounded-xl border border-inkSoft/20 bg-white px-3 py-3 text-ink" />

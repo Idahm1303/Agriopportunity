@@ -8,6 +8,7 @@ import { languages, provinces } from "@/lib/agri-options";
 import { uploadDocument } from "@/lib/object-storage";
 import { isAllowedRegistrationEmail, registrationEmailPolicyMessage } from "@/lib/email-validation";
 import { isValidPassword, passwordPolicyMessage } from "@/lib/password-validation";
+import { getPlatformSettings } from "@/lib/platform-settings";
 
 const allowedBusinessDocumentTypes = new Set(["application/pdf", "image/jpeg", "image/png"]);
 const maximumBusinessDocumentSize = 10 * 1024 * 1024;
@@ -42,6 +43,11 @@ const registerSchema = z.object({
 
 export async function POST(request: Request) {
   try {
+    const settings = await getPlatformSettings();
+    if (!settings.registrationEnabled) {
+      return NextResponse.json({ error: "New account registration is currently closed." }, { status: 403 });
+    }
+
     let body: unknown;
     let businessDocuments: File[] = [];
     if (request.headers.get("content-type")?.includes("multipart/form-data")) {

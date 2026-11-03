@@ -2,6 +2,7 @@ import { Prisma } from "@prisma/client";
 
 import { addAuditEntry } from "@/lib/audit";
 import { sendNewOpportunityMatchEmail } from "@/lib/email";
+import { getPlatformSettings } from "@/lib/platform-settings";
 import { prisma, withDatabaseRetry } from "@/lib/prisma";
 import type { Application, Opportunity, OpportunityType, Role, User } from "@/lib/mock-data";
 
@@ -22,6 +23,7 @@ function mapUser(user: Prisma.UserGetPayload<object>): User {
     preferredLanguage: user.preferredLanguage,
     skills: user.skills,
     qualifications: user.qualifications,
+    accountStatus: user.accountStatus,
     createdAt: user.createdAt.toISOString(),
   };
 }
@@ -198,8 +200,10 @@ export async function countLearners() {
 
 export async function countOpenOpportunities() {
   const now = new Date();
+  const { enabledOpportunityTypes } = await getPlatformSettings();
   return withDatabaseRetry(() => prisma.opportunity.count({
     where: {
+      type: { in: enabledOpportunityTypes },
       status: "open",
       AND: [
         { OR: [{ expiresAt: null }, { expiresAt: { gt: now } }] },
@@ -211,9 +215,12 @@ export async function countOpenOpportunities() {
 
 export async function countFundingPartners() {
   const now = new Date();
+  const { enabledOpportunityTypes } = await getPlatformSettings();
+  const fundingTypes = enabledOpportunityTypes.filter((type) => type === "funding" || type === "funding_call");
+  if (!fundingTypes.length) return 0;
   return withDatabaseRetry(() => prisma.opportunity.findMany({
     where: {
-      type: { in: ["funding", "funding_call"] },
+      type: { in: fundingTypes },
       status: "open",
       AND: [
         { OR: [{ expiresAt: null }, { expiresAt: { gt: now } }] },
@@ -762,6 +769,249 @@ export async function getProfileDocuments(userId: string) {
   });
 }
 
+export async function getAdminDocuments(filters: {
+  query?: string;
+  documentType?: string;
+  page?: number;
+}) {
+  const search = filters.query?.trim().slice(0, 100);
+  const where: Prisma.DocumentWhereInput = {
+    storageUrl: { not: null },
+    ...(filters.documentType ? { documentType: filters.documentType } : {}),
+    ...(search
+      ? {
+          OR: [
+            { fileName: { contains: search, mode: "insensitive" } },
+            { user: { is: { fullName: { contains: search, mode: "insensitive" } } } },
+            { user: { is: { email: { contains: search, mode: "insensitive" } } } },
+            { opportunity: { is: { title: { contains: search, mode: "insensitive" } } } },
+          ],
+        }
+      : {}),
+  };
+  const pageSize = 50;
+  const page = Math.max(1, filters.page ?? 1);
+  const [total, documentTypes] = await Promise.all([
+    prisma.document.count({ where }),
+    prisma.document.findMany({
+      distinct: ["documentType"],
+      select: { documentType: true },
+      orderBy: { documentType: "asc" },
+    }),
+  ]);
+  const totalPages = Math.max(1, Math.ceil(total / pageSize));
+  const currentPage = Math.min(page, totalPages);
+  const documents = await prisma.document.findMany({
+    where,
+    select: {
+      id: true,
+      documentType: true,
+      fileName: true,
+      createdAt: true,
+      user: { select: { fullName: true, email: true } },
+      opportunity: { select: { title: true } },
+    },
+    orderBy: [{ createdAt: "desc" }, { id: "desc" }],
+    skip: (currentPage - 1) * pageSize,
+    take: pageSize,
+  });
+  return {
+    documents,
+    page: currentPage,
+    pageSize,
+    total,
+    totalPages,
+    documentTypes: documentTypes.map(({ documentType }) => documentType),
+  };
+}
+
+export async function getAdminDocument(documentId: string) {
+  return prisma.document.findUnique({
+    where: { id: documentId },
+    select: { id: true, fileName: true, storageUrl: true, userId: true },
+  });
+}
+
+export async function getAdminUsers(filters: {
+  query?: string;
+  role?: Role;
+  page?: number;
+}) {
+  const search = filters.query?.trim().slice(0, 100);
+  const conditions: Prisma.UserWhereInput[] = [];
+  if (filters.role) {
+    conditions.push({
+      OR: [
+        { role: filters.role },
+        { roles: { some: { role: filters.role } } },
+      ],
+    });
+  }
+  if (search) {
+    conditions.push({
+      OR: [
+        { fullName: { contains: search, mode: "insensitive" } },
+        { email: { contains: search, mode: "insensitive" } },
+        { organizationName: { contains: search, mode: "insensitive" } },
+      ],
+    });
+  }
+  const where: Prisma.UserWhereInput = conditions.length ? { AND: conditions } : {};
+  const pageSize = 50;
+  const page = Math.max(1, filters.page ?? 1);
+  const total = await prisma.user.count({ where });
+  const totalPages = Math.max(1, Math.ceil(total / pageSize));
+  const currentPage = Math.min(page, totalPages);
+  const users = await prisma.user.findMany({
+    where,
+    select: {
+      id: true,
+      fullName: true,
+      email: true,
+      organizationName: true,
+      role: true,
+      accountStatus: true,
+      accountStatusReason: true,
+      accountStatusChangedAt: true,
+      verificationStatus: true,
+      createdAt: true,
+      roles: { select: { role: true }, orderBy: { role: "asc" } },
+    },
+    orderBy: [{ createdAt: "desc" }, { id: "desc" }],
+    skip: (currentPage - 1) * pageSize,
+    take: pageSize,
+  });
+  return { users, page: currentPage, pageSize, total, totalPages };
+}
+
+export class AdminUserUpdateError extends Error {
+  constructor(
+    message: string,
+    readonly statusCode: 404 | 409,
+  ) {
+    super(message);
+    this.name = "AdminUserUpdateError";
+  }
+}
+
+async function ensureAnotherActiveAdmin(
+  transaction: Prisma.TransactionClient,
+) {
+  const activeAdmins = await transaction.user.count({
+    where: {
+      accountStatus: "active",
+      OR: [
+        { role: "ADMIN" },
+        { roles: { some: { role: "ADMIN" } } },
+      ],
+    },
+  });
+  if (activeAdmins <= 1) {
+    throw new AdminUserUpdateError("At least one active administrator must remain.", 409);
+  }
+}
+
+export async function updateAdminUserStatus(input: {
+  userId: string;
+  adminId: string;
+  status: "active" | "suspended" | "deleted";
+  reason?: string;
+}) {
+  return prisma.$transaction(async (transaction) => {
+    const target = await transaction.user.findUnique({
+      where: { id: input.userId },
+      include: { roles: { select: { role: true } } },
+    });
+    if (!target) throw new AdminUserUpdateError("User account not found.", 404);
+    if (input.userId === input.adminId && input.status !== "active") {
+      throw new AdminUserUpdateError("Administrators cannot suspend or delete their own account.", 409);
+    }
+
+    const isAdmin = target.role === "ADMIN" || target.roles.some(({ role }) => role === "ADMIN");
+    if (isAdmin && target.accountStatus === "active" && input.status !== "active") {
+      await ensureAnotherActiveAdmin(transaction);
+    }
+
+    const updated = await transaction.user.update({
+      where: { id: input.userId },
+      data: {
+        accountStatus: input.status,
+        accountStatusReason: input.status === "active" ? null : input.reason ?? null,
+        accountStatusChangedAt: new Date(),
+      },
+      select: { id: true, accountStatus: true, accountStatusReason: true },
+    });
+    await transaction.auditLog.create({
+      data: {
+        action: input.status === "deleted" ? "user_soft_deleted" : `user_${input.status}`,
+        entityType: "user",
+        entityId: input.userId,
+        performedBy: input.adminId,
+        details: input.reason ?? `Account status changed to ${input.status}.`,
+      },
+    });
+    return updated;
+  }, { isolationLevel: Prisma.TransactionIsolationLevel.Serializable });
+}
+
+export async function updateAdminUserRole(input: {
+  userId: string;
+  adminId: string;
+  role: Role;
+  action: "assign" | "revoke";
+}) {
+  return prisma.$transaction(async (transaction) => {
+    const target = await transaction.user.findUnique({
+      where: { id: input.userId },
+      include: { roles: { select: { role: true } } },
+    });
+    if (!target) throw new AdminUserUpdateError("User account not found.", 404);
+    if (input.userId === input.adminId) {
+      throw new AdminUserUpdateError("Administrators cannot change their own roles.", 409);
+    }
+
+    const assignedRoles = target.roles.length
+      ? target.roles.map(({ role }) => role)
+      : [target.role];
+    if (input.action === "assign") {
+      if (assignedRoles.includes(input.role)) {
+        throw new AdminUserUpdateError("This role is already assigned to the account.", 409);
+      }
+      if (!target.roles.length) {
+        await transaction.userRole.create({ data: { userId: input.userId, role: target.role } });
+      }
+      await transaction.userRole.create({ data: { userId: input.userId, role: input.role } });
+    } else {
+      if (!assignedRoles.includes(input.role)) {
+        throw new AdminUserUpdateError("This role is not assigned to the account.", 409);
+      }
+      if (assignedRoles.length === 1) {
+        throw new AdminUserUpdateError("Every account must keep at least one role.", 409);
+      }
+      if (input.role === "ADMIN" && target.accountStatus === "active") {
+        await ensureAnotherActiveAdmin(transaction);
+      }
+      if (target.role === input.role) {
+        const fallbackRole = assignedRoles.find((role) => role !== input.role);
+        if (!fallbackRole) throw new AdminUserUpdateError("Every account must keep at least one role.", 409);
+        await transaction.user.update({ where: { id: input.userId }, data: { role: fallbackRole } });
+      }
+      await transaction.userRole.deleteMany({ where: { userId: input.userId, role: input.role } });
+    }
+
+    await transaction.auditLog.create({
+      data: {
+        action: `user_role_${input.action}`,
+        entityType: "user",
+        entityId: input.userId,
+        performedBy: input.adminId,
+        details: `${input.action === "assign" ? "Assigned" : "Revoked"} ${input.role} role.`,
+      },
+    });
+    return { id: target.id, action: input.action, role: input.role };
+  }, { isolationLevel: Prisma.TransactionIsolationLevel.Serializable });
+}
+
 export async function confirmProfileDocument(userId: string, documentId: string) {
   const document = await prisma.document.findFirst({
     where: { id: documentId, userId, opportunityId: null, applicationId: null },
@@ -848,9 +1098,12 @@ export async function updateEmployerVerification(input: { employerId: string; st
 
 export async function listOpportunities(filters?: { type?: OpportunityType; audience?: string; province?: string }) {
   const now = new Date();
+  const { enabledOpportunityTypes } = await getPlatformSettings();
+  if (filters?.type && !enabledOpportunityTypes.includes(filters.type)) return [];
   const opportunities = await prisma.opportunity.findMany({
     where: {
       status: "open",
+      type: { in: enabledOpportunityTypes },
       ...(filters?.type ? { type: filters.type } : {}),
       ...(filters?.audience ? { targetAudience: { has: filters.audience } } : {}),
       AND: [
@@ -874,11 +1127,13 @@ export async function getEmployerFundingOpportunities() {
   return opportunities.filter((opportunity) => opportunity.type === "funding" || opportunity.type === "funding_call");
 }
 
-export async function getOpportunityById(id: string) {
+export async function getOpportunityById(id: string, includeDisabled = false) {
+  const { enabledOpportunityTypes } = await getPlatformSettings();
   const opportunity = await prisma.opportunity.findUnique({
     where: { id },
     include: { postedBy: { select: { email: true, fullName: true, organizationName: true } } },
   });
+  if (opportunity && !includeDisabled && !enabledOpportunityTypes.includes(opportunity.type as OpportunityType)) return undefined;
   return opportunity ? {
     ...mapOpportunity(opportunity),
     applicationEmail: opportunity.applicationEmail ?? opportunity.postedBy.email,
@@ -935,6 +1190,11 @@ export async function createOpportunity(input: {
   postedById: string;
   expiresAt?: Date | null;
 }) {
+  const { enabledOpportunityTypes } = await getPlatformSettings();
+  const opportunityType = (input.type ?? input.category) as OpportunityType;
+  if (!enabledOpportunityTypes.includes(opportunityType)) {
+    throw new Error("This opportunity type is currently disabled by an administrator.");
+  }
   const opportunity = await prisma.opportunity.create({
     data: {
       title: input.title,
@@ -958,6 +1218,13 @@ export async function createOpportunity(input: {
   });
 
   return mapOpportunity(opportunity);
+}
+
+export class OpportunityTypeDisabledError extends Error {
+  constructor() {
+    super("This opportunity type is currently disabled by an administrator.");
+    this.name = "OpportunityTypeDisabledError";
+  }
 }
 
 export async function getUserApplications(userId: string) {
@@ -1036,17 +1303,19 @@ export async function getApplicationDocumentForUser(input: {
 export async function getEmployerApplications(
   userId: string,
   isAdmin: boolean,
-  filters?: string | { category?: string; field?: string; verification?: string },
+  filters?: string | { category?: string; field?: string; verification?: string; status?: string; opportunityId?: string },
 ) {
   const normalizedFilters = typeof filters === "string" ? { category: filters } : filters ?? {};
   const opportunityFilter = {
     ...(!isAdmin ? { postedById: userId } : {}),
     ...(normalizedFilters.category && normalizedFilters.category !== "all" ? { category: normalizedFilters.category } : {}),
+    ...(normalizedFilters.opportunityId ? { id: normalizedFilters.opportunityId } : {}),
     ...(normalizedFilters.field ? { requiredSkills: { has: normalizedFilters.field } } : {}),
   };
   const applications = await prisma.application.findMany({
     where: {
       opportunity: opportunityFilter,
+      ...(normalizedFilters.status ? { status: normalizedFilters.status } : {}),
       ...(normalizedFilters.verification === "verified" ? { verifiedAt: { not: null } } : {}),
       ...(normalizedFilters.verification === "unverified" ? { verifiedAt: null } : {}),
     },
@@ -1093,6 +1362,8 @@ export async function createApplication(input: {
   const opportunity = await prisma.opportunity.findUnique({ where: { id: input.opportunityId } });
   const user = await prisma.user.findUnique({ where: { id: input.userId } });
   if (!opportunity || !user) return null;
+  const platformSettings = await getPlatformSettings();
+  if (!platformSettings.enabledOpportunityTypes.includes(opportunity.type as OpportunityType)) return null;
   if (opportunity.status !== "open" ||
     (opportunity.expiresAt && opportunity.expiresAt <= new Date()) ||
     (opportunity.closingDate && opportunity.closingDate <= new Date())) return null;
@@ -1220,6 +1491,12 @@ export async function updateOpportunityStatus(input: { id: string; employerId: s
     where: { id: input.id, ...(input.isAdmin ? {} : { postedById: input.employerId }) },
   });
   if (!opportunity) return null;
+  if (input.status === "open") {
+    const settings = await getPlatformSettings();
+    if (!settings.enabledOpportunityTypes.includes(opportunity.type as OpportunityType)) {
+      throw new OpportunityTypeDisabledError();
+    }
+  }
   if (input.status === "open" && opportunity.paymentRequestFlag && !input.isAdmin) return null;
   return prisma.opportunity.update({
     where: { id: input.id },
@@ -1254,6 +1531,9 @@ export async function updateOpportunityDetails(input: {
     where: { id: input.id, ...(input.isAdmin ? {} : { postedById: input.employerId }) },
   });
   if (!opportunity) return null;
+  const settings = await getPlatformSettings();
+  const requestedType = (input.type ?? input.category) as OpportunityType;
+  if (!settings.enabledOpportunityTypes.includes(requestedType) && opportunity.type !== requestedType) return null;
 
   return prisma.opportunity.update({
     where: { id: input.id },

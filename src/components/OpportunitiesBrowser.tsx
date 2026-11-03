@@ -13,7 +13,7 @@ const audienceOptions = [
   { value: "cooperative", label: "Co-operative" },
 ];
 
-function normalizeCategory(value: string) {
+function normalizeCategory(value: string, enabledTypes: OpportunityType[]) {
   if (value === "all") return "all";
   const aliases: Record<string, OpportunityType> = {
     jobs: "job",
@@ -21,7 +21,7 @@ function normalizeCategory(value: string) {
     bursaries: "bursary",
   };
   const normalized = aliases[value] ?? value;
-  return opportunityTypes.includes(normalized as OpportunityType) ? normalized : "job";
+  return enabledTypes.includes(normalized as OpportunityType) ? normalized : enabledTypes[0] ?? "job";
 }
 
 function fallbackMatchScore(skills: string[] = [], requiredSkills: string[] = [], opportunityLocation?: string | null, userLocation?: string | null) {
@@ -44,6 +44,7 @@ export function OpportunitiesBrowser({
   onlyMatched = false,
   initialAudience = "",
   initialProvince = "",
+  enabledOpportunityTypes = opportunityTypes,
 }: {
   opportunities: Opportunity[];
   currentUser?: { skills?: string[]; location?: string | null; province?: string | null } | null;
@@ -51,17 +52,18 @@ export function OpportunitiesBrowser({
   onlyMatched?: boolean;
   initialAudience?: string;
   initialProvince?: string;
+  enabledOpportunityTypes?: OpportunityType[];
 }) {
   const [search, setSearch] = useState("");
-  const [category, setCategory] = useState(() => normalizeCategory(initialCategory));
+  const [category, setCategory] = useState(() => normalizeCategory(initialCategory, enabledOpportunityTypes));
   const [audience, setAudience] = useState(initialAudience);
   const [province, setProvince] = useState(initialProvince);
   const [closingBefore, setClosingBefore] = useState("");
   const normalizedUserLocation = currentUser?.province ?? currentUser?.location;
 
   const categoryCounts = useMemo(() => Object.fromEntries(
-    opportunityTypes.map((type) => [type, opportunities.filter((opportunity) => (opportunity.type ?? opportunity.category) === type).length]),
-  ), [opportunities]);
+    enabledOpportunityTypes.map((type) => [type, opportunities.filter((opportunity) => (opportunity.type ?? opportunity.category) === type).length]),
+  ), [enabledOpportunityTypes, opportunities]);
 
   const filteredOpportunities = useMemo(() => {
     const searchValue = search.trim().toLowerCase();
@@ -104,7 +106,7 @@ export function OpportunitiesBrowser({
           >
             All types
           </button>
-          {opportunityTypes.map((type) => (
+          {enabledOpportunityTypes.map((type) => (
             <button
               key={type}
               type="button"

@@ -12,6 +12,7 @@ export default async function FarmerProfilePage() {
   const userId = (session?.user as { userId?: string } | undefined)?.userId;
   if (!userId) redirect("/login?callbackUrl=%2Fprofile%2Ffarmer");
   const roles = await getUserRoles(userId);
+  if (roles.includes("ADMIN")) redirect("/admin/dashboard");
   if (!roles.includes("FARMER")) redirect("/dashboard");
   const [user, profiles, onboarding] = await Promise.all([
     findUserById(userId),

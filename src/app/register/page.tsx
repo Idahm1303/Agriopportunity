@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { signIn } from "next-auth/react";
 import { useRouter } from "next/navigation";
-import { use, useState } from "react";
+import { use, useEffect, useState } from "react";
 import { languages, provinces } from "@/lib/agri-options";
 import { isAllowedRegistrationEmail, registrationEmailPolicyMessage } from "@/lib/email-validation";
 import { isValidPassword, passwordPolicyMessage } from "@/lib/password-validation";
@@ -35,6 +35,23 @@ export default function RegisterPage({ searchParams }: { searchParams: Promise<{
   });
   const [error, setError] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [registrationStatus, setRegistrationStatus] = useState<"loading" | "enabled" | "disabled" | "error">("loading");
+
+  useEffect(() => {
+    let active = true;
+    fetch("/api/v1/settings/public")
+      .then(async (response) => {
+        const settings = await response.json();
+        if (!response.ok) throw new Error(settings.error ?? "Unable to load registration settings.");
+        if (active) setRegistrationStatus(settings.registrationEnabled ? "enabled" : "disabled");
+      })
+      .catch(() => {
+        if (active) setRegistrationStatus("error");
+      });
+    return () => {
+      active = false;
+    };
+  }, []);
 
   const handleSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
@@ -124,6 +141,21 @@ export default function RegisterPage({ searchParams }: { searchParams: Promise<{
       setIsSubmitting(false);
     }
   };
+
+  if (registrationStatus !== "enabled") {
+    return (
+      <main className="mx-auto max-w-2xl px-4 py-16">
+        <section className="rounded-[2rem] bg-white p-8 shadow-sm ring-1 ring-forest/10">
+          <h1 className="font-display text-3xl text-forest">
+            {registrationStatus === "loading" ? "Checking registration..." : "Registration unavailable"}
+          </h1>
+          {registrationStatus === "disabled" ? <p className="mt-3 text-inkSoft">New account registration is currently closed. Please sign in if you already have an account.</p> : null}
+          {registrationStatus === "error" ? <p role="alert" className="mt-3 text-sm text-red-700">We couldn’t load registration settings. Please try again later.</p> : null}
+          {registrationStatus !== "loading" ? <Link href="/login" className="mt-5 inline-flex rounded-full bg-forest px-5 py-3 font-medium text-cream">Go to login</Link> : null}
+        </section>
+      </main>
+    );
+  }
 
   return (
     <main className="flex min-h-screen items-center justify-center px-4 py-12">

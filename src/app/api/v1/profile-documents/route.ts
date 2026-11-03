@@ -28,6 +28,9 @@ async function getApplicant() {
   const user = session?.user as { userId?: string; role?: string } | undefined;
   if (!user?.userId) return { error: NextResponse.json({ error: "Authentication required." }, { status: 401 }) };
   const roles = await getUserRoles(user.userId);
+  if (roles.includes("ADMIN")) {
+    return { error: NextResponse.json({ error: "Administrator accounts cannot manage applicant profile documents." }, { status: 403 }) };
+  }
   if (!["FARMER", "SMME", "COOPERATIVE"].includes(user.role ?? "") ||
     !roles.some((role) => role === "FARMER" || role === "SMME" || role === "COOPERATIVE")) {
     return { error: NextResponse.json({ error: "A farmer, SMME, or co-operative role is required." }, { status: 403 }) };

@@ -7,6 +7,7 @@ import { authOptions } from "@/lib/auth";
 import { createOpportunity, listOpportunities } from "@/lib/database";
 import { opportunityTypes } from "@/lib/agri-options";
 import { hasValidAdditionalGrantDocuments } from "@/lib/grant-application";
+import { getPlatformSettings } from "@/lib/platform-settings";
 
 const opportunitySchema = z.object({
   title: z.string().min(3, "Title must be at least 3 characters."),
@@ -71,6 +72,11 @@ export async function POST(request: Request) {
         { error: parsed.error.issues[0]?.message ?? "Invalid opportunity payload." },
         { status: 400 },
       );
+    }
+    const settings = await getPlatformSettings();
+    const requestedType = parsed.data.type ?? parsed.data.category;
+    if (!requestedType || !settings.enabledOpportunityTypes.includes(requestedType)) {
+      return NextResponse.json({ error: "This opportunity type is currently disabled by an administrator." }, { status: 409 });
     }
 
     const closingDate = new Date(`${parsed.data.closingDate}T23:59:59.999Z`);

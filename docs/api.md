@@ -134,6 +134,26 @@ Administrator moderation changes a listing to `open`, `closed`, or `suspended`.
 
 Administrator verification changes an employer to `pending`, `verified`, or `rejected` and may include `verificationDocumentUrl`.
 
+### PATCH /api/v1/admin/users/[id]
+
+Administrator-only user management supports assigning/revoking roles, suspending or reactivating accounts, and soft-deleting accounts. Soft deletion disables sign-in while preserving records and uploaded documents. Account and role changes are audited; the last active administrator cannot be suspended, deleted, or demoted.
+
+### GET /api/v1/admin/settings
+
+Returns the current platform settings to administrators.
+
+### PATCH /api/v1/admin/settings
+
+Saves registration access, enabled opportunity types, email notifications, public branding/contact details, and bounded login lockout settings. Settings changes are audited. Server credentials are not exposed or editable.
+
+### GET /api/v1/settings/public
+
+Returns public registration, opportunity-type, and branding settings for the client application. It does not expose security settings or server secrets.
+
+### GET /api/v1/admin/documents/[id]
+
+Administrator-only private document download. The route returns the uploaded file as an attachment with `Cache-Control: private, no-store`; successful downloads are recorded in the audit trail. The admin dashboard lists and filters uploaded documents, including profile and application documents.
+
 ### OCR document response fields
 
 Learners must complete their profile before browsing opportunities: provide a contact number, residential address and location, select at least one learner skill, and upload a qualification PDF/image or take a photo (up to 10 MB). Submitting the profile runs OCR, saves extracted qualifications and skills, and then opens matched opportunities across all types. The existing learner skill options are shared from `src/lib/agri-options.ts`. Profile and application OCR workflows store document metadata and return `extractionConfidence`. Clients should ask the applicant to confirm extracted values when `extractionConfidence` is below `0.8`.

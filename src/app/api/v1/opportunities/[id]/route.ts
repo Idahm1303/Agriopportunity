@@ -3,10 +3,11 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 
 import { authOptions } from "@/lib/auth";
-import { getOpportunityById, notifyUsersAboutOpportunity, updateOpportunityDetails, updateOpportunityStatus } from "@/lib/database";
+import { getOpportunityById, notifyUsersAboutOpportunity, OpportunityTypeDisabledError, updateOpportunityDetails, updateOpportunityStatus } from "@/lib/database";
 import { addAuditEntry } from "@/lib/audit";
 import { opportunityTypes } from "@/lib/agri-options";
 import { hasValidAdditionalGrantDocuments } from "@/lib/grant-application";
+import { getPlatformSettings } from "@/lib/platform-settings";
 
 const statusSchema = z.object({ status: z.enum(["open", "closed"]) });
 const opportunityDetailsSchema = z.object({
@@ -51,7 +52,7 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
     return NextResponse.json({ error: "Provide valid opportunity details." }, { status: 400 });
   }
   const { id } = await params;
-  const previousOpportunity = "status" in body ? await getOpportunityById(id) : undefined;
+  const previousOpportunity = await getOpportunityById(id, true);
   let opportunity: ReturnType<typeof updateOpportunityStatus> | ReturnType<typeof updateOpportunityDetails>;
   if ("status" in body) {
     const parsed = statusSchema.safeParse(body);
@@ -60,6 +61,11 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
   } else {
     const parsed = opportunityDetailsSchema.safeParse(body);
     if (!parsed.success) return NextResponse.json({ error: parsed.error.issues[0]?.message ?? "Invalid opportunity details." }, { status: 400 });
+    const settings = await getPlatformSettings();
+    const requestedType = parsed.data.type ?? parsed.data.category;
+    if (!settings.enabledOpportunityTypes.includes(requestedType) && previousOpportunity?.type !== requestedType) {
+      return NextResponse.json({ error: "This opportunity type is currently disabled by an administrator." }, { status: 409 });
+    }
     const closingDate = new Date(`${parsed.data.closingDate}T23:59:59.999Z`);
     if (closingDate <= new Date()) return NextResponse.json({ error: "The opportunity closing date must be today or later." }, { status: 400 });
     opportunity = updateOpportunityDetails({
@@ -81,7 +87,16 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
           : null,
     });
   }
-  const resolvedOpportunity = await opportunity;
+  let resolvedOpportunity: Awaited<typeof opportunity>;
+  try {
+    resolvedOpportunity = await opportunity;
+  } catch (error) {
+    if (error instanceof OpportunityTypeDisabledError) {
+      return NextResponse.json({ error: error.message }, { status: 409 });
+    }
+    console.error("Unable to update opportunity:", error);
+    return NextResponse.json({ error: "Unable to update opportunity." }, { status: 500 });
+  }
   let notificationSummary: Awaited<ReturnType<typeof notifyUsersAboutOpportunity>> | undefined;
   let notificationWarning: string | undefined;
   if (resolvedOpportunity && body.status === "open" && previousOpportunity?.status !== "open") {

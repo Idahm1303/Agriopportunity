@@ -26,13 +26,17 @@ export default function ProfilePage() {
     fetch("/api/v1/profile")
       .then(async (response) => {
         const payload = await response.json();
+        if (response.status === 403) {
+          router.replace("/admin/dashboard");
+          return;
+        }
         if (!response.ok || !payload.user) throw new Error(payload.error ?? "Unable to load your profile.");
         setUser(payload.user);
         setSkills(payload.user.skills ?? []);
       })
       .catch((loadError: unknown) => setError(loadError instanceof Error ? loadError.message : "Unable to load your profile."))
       .finally(() => setIsLoadingProfile(false));
-  }, []);
+  }, [router]);
 
   const handleSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
@@ -85,6 +89,18 @@ export default function ProfilePage() {
   const toggleSkill = (skill: string) => {
     setSkills((current) => current.includes(skill) ? current.filter((item) => item !== skill) : [...current, skill]);
   };
+
+  if (isLoadingProfile) {
+    return <main className="mx-auto max-w-4xl px-4 py-12 text-inkSoft">Loading your profile...</main>;
+  }
+
+  if (error) {
+    return (
+      <main className="mx-auto max-w-4xl px-4 py-12">
+        <p role="alert" className="rounded-xl bg-white p-5 text-sm text-red-700 shadow-sm ring-1 ring-forest/10">{error}</p>
+      </main>
+    );
+  }
 
   if (scanResult) {
     return (
